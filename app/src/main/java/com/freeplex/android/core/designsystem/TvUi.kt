@@ -30,42 +30,39 @@ fun Configuration.isTelevision(): Boolean =
 @Composable
 fun isTvDevice(): Boolean = LocalConfiguration.current.isTelevision()
 
-/**
- * Compact TV chrome sized for ~1080p with overscan margin.
- * Keep focus scale modest so LazyRow/Grid edges do not clip posters.
- */
+/** @deprecated Prefer [FpDimens] — kept for gradual migration. */
+@Deprecated("Use FpDimens", ReplaceWith("FpDimens"))
 object TvDimens {
-    val sidebarWidth = 188.dp
-    val contentPadH = 20.dp
-    val contentPadV = 14.dp
-    /** Extra inset so scale-on-focus does not clip at list edges. */
-    val focusHalo = 12.dp
-    val posterWidth = 110.dp
-    val posterGap = 14.dp
-    val gridMinCell = 128.dp
-    val heroHeight = 168.dp
-    val focusBorder = 2.dp
-    val navItemPadH = 10.dp
-    val navItemPadV = 7.dp
-    val corner = 8.dp
-    val focusScale = 1.04f
-    val sectionGap = 12.dp
+    val sidebarWidth = FpDimens.sidebarWidth
+    val contentPadH = FpDimens.contentPadHTv
+    val contentPadV = FpDimens.contentPadVTv
+    val focusHalo = FpDimens.focusHalo
+    val posterWidth = FpDimens.posterTv
+    val posterGap = FpDimens.posterGapTv
+    val gridMinCell = FpDimens.gridMinCellTv
+    val heroHeight = FpDimens.heroTv
+    val focusBorder = FpDimens.focusBorder
+    val navItemPadH = FpDimens.space10
+    val navItemPadV = FpDimens.space8
+    val corner = FpDimens.radiusMd
+    val focusScale = FpDimens.focusScale
+    val sectionGap = FpDimens.space16
 }
 
-val TvFocusColor = Color(0xFFE8B84A)
+val TvFocusColor = FpColors.Accent
 
 val TvContentPadding = PaddingValues(
-    horizontal = TvDimens.contentPadH,
-    vertical = TvDimens.contentPadV,
+    horizontal = FpDimens.contentPadHTv,
+    vertical = FpDimens.contentPadVTv,
 )
 
 @Composable
 fun Modifier.tvFocusable(
     onClick: (() -> Unit)? = null,
-    scaleFocused: Float = TvDimens.focusScale,
-    borderWidth: Dp = TvDimens.focusBorder,
-    borderColor: Color = TvFocusColor,
-    shape: RoundedCornerShape = RoundedCornerShape(TvDimens.corner),
+    scaleFocused: Float = FpDimens.focusScale,
+    borderWidth: Dp = FpDimens.focusBorder,
+    borderColor: Color = FpColors.Accent,
+    shape: RoundedCornerShape = RoundedCornerShape(FpDimens.radiusMd),
 ): Modifier {
     var focused by remember { mutableStateOf(false) }
     val scale by animateFloatAsState(if (focused) scaleFocused else 1f, label = "tvFocusScale")
@@ -95,19 +92,19 @@ fun Modifier.tvNavItem(
 ): Modifier {
     var focused by remember { mutableStateOf(false) }
     val bg = when {
-        focused -> TvFocusColor.copy(alpha = 0.22f)
-        selected -> TvFocusColor.copy(alpha = 0.14f)
+        focused -> FpColors.AccentSoft
+        selected -> FpColors.AccentSoft.copy(alpha = 0.55f)
         else -> Color.Transparent
     }
     return this
         .onFocusChanged { focused = it.isFocused }
-        .clip(RoundedCornerShape(TvDimens.corner))
+        .clip(RoundedCornerShape(FpDimens.radiusMd))
         .background(bg)
         .border(
-            width = if (focused) TvDimens.focusBorder else 0.dp,
-            color = if (focused) TvFocusColor else Color.Transparent,
-            shape = RoundedCornerShape(TvDimens.corner),
+            width = if (focused) FpDimens.focusBorder else 0.dp,
+            color = if (focused) FpColors.Accent else Color.Transparent,
+            shape = RoundedCornerShape(FpDimens.radiusMd),
         )
         .clickable(onClick = onClick)
-        .padding(horizontal = TvDimens.navItemPadH, vertical = TvDimens.navItemPadV)
+        .padding(horizontal = FpDimens.space12, vertical = FpDimens.space10)
 }

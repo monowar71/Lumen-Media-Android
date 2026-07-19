@@ -13,7 +13,6 @@ import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.aspectRatio
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -26,9 +25,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -49,9 +46,15 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.freeplex.android.core.designsystem.ErrorState
+import com.freeplex.android.core.designsystem.FpBadge
+import com.freeplex.android.core.designsystem.FpButton
+import com.freeplex.android.core.designsystem.FpButtonVariant
+import com.freeplex.android.core.designsystem.FpChip
+import com.freeplex.android.core.designsystem.FpDimens
+import com.freeplex.android.core.designsystem.FpSectionTitle
 import com.freeplex.android.core.designsystem.FullPageLoading
-import com.freeplex.android.core.designsystem.TvContentPadding
-import com.freeplex.android.core.designsystem.TvDimens
+import com.freeplex.android.core.designsystem.MediaProgressBar
+import com.freeplex.android.core.designsystem.fpContentPadding
 import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvFocusable
 import com.freeplex.android.core.model.EpisodeSummary
@@ -91,7 +94,7 @@ fun DetailsScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (tv) TvContentPadding else PaddingValues()),
+                .then(if (tv) Modifier.padding(fpContentPadding()) else Modifier),
         ) {
             item(key = "header") {
                 DetailScaffold(
@@ -103,19 +106,15 @@ fun DetailsScreen(
                     poster = movie.artwork.poster,
                     progress = progress,
                     baseUrl = state.baseUrl,
-                    playLabel = if (canResume) "Продолжить просмотр" else "Посмотреть",
+                    playLabel = if (canResume) "Resume" else "Play",
                     onPlay = { onPlay(movie.id, if (canResume) resume else 0L, false) },
-                    playFromStartLabel = if (canResume) "С начала" else null,
+                    playFromStartLabel = if (canResume) "From start" else null,
                     onPlayFromStart = if (canResume) {
                         { onPlay(movie.id, 0L, false) }
                     } else {
                         null
                     },
-                    watchedLabel = if (watched) {
-                        "Пометить как непросмотренное"
-                    } else {
-                        "Пометить как просмотренное"
-                    },
+                    watchedLabel = if (watched) "Mark unwatched" else "Mark watched",
                     onToggleWatched = viewModel::toggleMovieWatched,
                     watchedBusy = state.markingWatched,
                     trailerUrl = movie.trailerUrl,
@@ -128,7 +127,7 @@ fun DetailsScreen(
                 }
             }
             item(key = "bottom-spacer") {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(FpDimens.space24))
             }
         }
         return
@@ -145,11 +144,10 @@ fun DetailsScreen(
         val canResume = resume > 0L
         val seriesWatched = DetailsViewModel.isSeriesWatched(series)
         val seasonWatched = DetailsViewModel.isSeasonWatched(state.episodes)
-        // Virtualize episodes — a full season of AsyncImage rows blows TV memory.
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(if (tv) TvContentPadding else PaddingValues()),
+                .then(if (tv) Modifier.padding(fpContentPadding()) else Modifier),
         ) {
             item(key = "header") {
                 DetailScaffold(
@@ -165,29 +163,20 @@ fun DetailsScreen(
                     baseUrl = state.baseUrl,
                     playLabel = when {
                         playTarget == null -> null
-                        canResume -> "Продолжить просмотр"
-                        else -> "Посмотреть"
+                        canResume -> "Resume"
+                        else -> "Play"
                     },
                     onPlay = playTarget?.let { ep ->
                         { onPlay(ep.id, resume, true) }
                     },
-                    watchedLabel = if (seriesWatched) {
-                        "Пометить как непросмотренное"
-                    } else {
-                        "Пометить как просмотренное"
-                    },
+                    watchedLabel = if (seriesWatched) "Mark unwatched" else "Mark watched",
                     onToggleWatched = viewModel::toggleSeriesWatched,
                     watchedBusy = state.markingWatched,
                     trailerUrl = series.trailerUrl,
                     tv = tv,
-                    // Play/Trailer are focusable; only make the whole header a
-                    // focus sink when neither button exists.
                     focusableHeader = tv && playTarget == null && series.trailerUrl == null,
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-                // Keep seasons in the same LazyColumn item as the header so
-                // DPAD_DOWN from Trailer/Play can reach the chips (Compose
-                // focus search often fails across LazyColumn item boundaries).
+                Spacer(modifier = Modifier.height(FpDimens.space12))
                 SeasonPicker(
                     seasons = state.seasons.map { it.id to it.name },
                     selectedId = state.selectedSeasonId,
@@ -195,49 +184,35 @@ fun DetailsScreen(
                     tv = tv,
                 )
                 if (state.episodes.isNotEmpty()) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        OutlinedButton(
+                    Spacer(modifier = Modifier.height(FpDimens.space8))
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
+                        modifier = Modifier.padding(horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone),
+                    ) {
+                        FpButton(
                             onClick = viewModel::toggleSeasonWatched,
                             enabled = !state.markingWatched,
-                            modifier = Modifier.tvFocusable(
-                                onClick = viewModel::toggleSeasonWatched,
-                                scaleFocused = 1.05f,
-                            ),
-                        ) {
-                            Text(
-                                if (seasonWatched) {
-                                    "Пометить сезон как непросмотренный"
-                                } else {
-                                    "Пометить сезон как просмотренный"
-                                },
-                                style = MaterialTheme.typography.titleSmall,
-                            )
-                        }
+                            label = if (seasonWatched) "Unwatch season" else "Watch season",
+                            variant = FpButtonVariant.Secondary,
+                            compact = true,
+                        )
                         val seasonOffline = seasonOfflineLabel(state.episodes, state.offlineByEpisodeId)
-                        OutlinedButton(
+                        FpButton(
                             onClick = viewModel::downloadSeason,
                             enabled = seasonOffline == SeasonOfflineAction.Download,
-                            modifier = Modifier.tvFocusable(
-                                onClick = if (seasonOffline == SeasonOfflineAction.Download) {
-                                    viewModel::downloadSeason
-                                } else {
-                                    null
-                                },
-                                scaleFocused = 1.05f,
-                            ),
-                        ) {
-                            Text(seasonOffline.label, style = MaterialTheme.typography.titleSmall)
-                        }
+                            label = seasonOffline.label,
+                            variant = FpButtonVariant.Secondary,
+                            compact = true,
+                        )
                     }
                 }
-                Spacer(modifier = Modifier.height(8.dp))
+                Spacer(modifier = Modifier.height(FpDimens.space8))
             }
             val cast = series.people.orEmpty()
             if (cast.isNotEmpty()) {
                 item(key = "cast") {
                     CastSection(people = cast, baseUrl = state.baseUrl, tv = tv)
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(FpDimens.space8))
                 }
             }
             items(state.episodes, key = { it.id }) { ep ->
@@ -255,7 +230,7 @@ fun DetailsScreen(
                 )
             }
             item(key = "bottom-spacer") {
-                Spacer(modifier = Modifier.height(24.dp))
+                Spacer(modifier = Modifier.height(FpDimens.space24))
             }
         }
     }
@@ -269,34 +244,20 @@ private fun SeasonPicker(
     tv: Boolean,
 ) {
     if (seasons.isEmpty()) return
-    // LazyRow so many seasons stay reachable via D-pad / swipe — a plain Row
-    // clipped chips that could never receive focus or clicks.
     LazyRow(
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        contentPadding = PaddingValues(horizontal = if (tv) TvDimens.focusHalo else 0.dp),
+        horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
+        contentPadding = PaddingValues(
+            horizontal = if (tv) FpDimens.focusHalo else FpDimens.contentPadHPhone,
+        ),
         modifier = Modifier
             .fillMaxWidth()
             .then(if (tv) Modifier.focusRestorer() else Modifier),
     ) {
         items(seasons, key = { it.first }) { (id, name) ->
-            val selected = id == selectedId
-            Text(
-                text = name,
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = if (selected) MaterialTheme.colorScheme.onPrimary
-                else MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier
-                    .tvFocusable(
-                        onClick = { onSelect(id) },
-                        shape = RoundedCornerShape(20.dp),
-                    )
-                    .clip(RoundedCornerShape(20.dp))
-                    .background(
-                        if (selected) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceVariant,
-                    )
-                    .padding(horizontal = 16.dp, vertical = 8.dp),
+            FpChip(
+                label = name,
+                selected = id == selectedId,
+                onClick = { onSelect(id) },
             )
         }
     }
@@ -326,19 +287,26 @@ private fun EpisodeRow(
         positionMs = if (watched) 0L else episode.userData.playbackPositionMs,
         runtimeMs = episode.runtimeMs,
     )
+    val shape = RoundedCornerShape(FpDimens.radiusMd)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .tvFocusable(onClick = onPlay, scaleFocused = 1.015f)
-            .padding(horizontal = 6.dp, vertical = if (tv) 6.dp else 8.dp),
+            .padding(
+                horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone,
+                vertical = FpDimens.space4,
+            )
+            .tvFocusable(onClick = onPlay, scaleFocused = 1.015f, shape = shape)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
+            .padding(FpDimens.space10),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(FpDimens.space12),
     ) {
         Box(
             modifier = Modifier
-                .width(if (tv) 140.dp else 120.dp)
-                .height(if (tv) 78.dp else 68.dp)
-                .clip(RoundedCornerShape(TvDimens.corner))
+                .width(if (tv) FpDimens.episodeThumbWTv else FpDimens.episodeThumbW)
+                .height(if (tv) FpDimens.episodeThumbHTv else FpDimens.episodeThumbH)
+                .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             if (thumb != null) {
@@ -349,7 +317,7 @@ private fun EpisodeRow(
                     modifier = Modifier.fillMaxSize(),
                 )
             }
-            ProgressBar(progress = progress, modifier = Modifier.align(Alignment.BottomStart))
+            MediaProgressBar(progress = progress, modifier = Modifier.align(Alignment.BottomStart))
         }
         Column(modifier = Modifier.weight(1f)) {
             Row(
@@ -366,14 +334,10 @@ private fun EpisodeRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(FpDimens.space6)) {
                     OfflineBadge(offline = offline)
                     if (watched) {
-                        Text(
-                            text = "Просмотрено",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.primary,
-                        )
+                        FpBadge(label = "Watched", accent = true)
                     }
                 }
             }
@@ -384,45 +348,39 @@ private fun EpisodeRow(
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = if (tv) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = FpDimens.space2),
                 )
             }
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(FpDimens.space4),
+                modifier = Modifier.padding(top = FpDimens.space4),
             ) {
-                OutlinedButton(
+                FpButton(
                     onClick = onToggleWatched,
                     enabled = !watchedBusy,
-                    modifier = Modifier.tvFocusable(onClick = onToggleWatched, scaleFocused = 1.05f),
-                ) {
-                    Text(
-                        if (watched) "Пометить как непросмотренное" else "Пометить как просмотренное",
-                        style = MaterialTheme.typography.labelMedium,
-                    )
-                }
+                    label = if (watched) "Unwatch" else "Watched",
+                    variant = FpButtonVariant.Ghost,
+                    compact = true,
+                )
                 when (offline?.status) {
-                    CachedEpisodeStatus.Ready -> OutlinedButton(
+                    CachedEpisodeStatus.Ready -> FpButton(
                         onClick = onRemoveDownload,
-                        modifier = Modifier.tvFocusable(onClick = onRemoveDownload, scaleFocused = 1.05f),
-                    ) {
-                        Text("Удалить кеш", style = MaterialTheme.typography.labelMedium)
-                    }
-                    CachedEpisodeStatus.Queued, CachedEpisodeStatus.Downloading -> OutlinedButton(
+                        label = "Remove",
+                        variant = FpButtonVariant.Ghost,
+                        compact = true,
+                    )
+                    CachedEpisodeStatus.Queued, CachedEpisodeStatus.Downloading -> FpButton(
                         onClick = onCancelDownload,
-                        modifier = Modifier.tvFocusable(onClick = onCancelDownload, scaleFocused = 1.05f),
-                    ) {
-                        Text("Отменить", style = MaterialTheme.typography.labelMedium)
-                    }
-                    CachedEpisodeStatus.Failed, null -> OutlinedButton(
+                        label = "Cancel",
+                        variant = FpButtonVariant.Ghost,
+                        compact = true,
+                    )
+                    CachedEpisodeStatus.Failed, null -> FpButton(
                         onClick = onDownload,
-                        modifier = Modifier.tvFocusable(onClick = onDownload, scaleFocused = 1.05f),
-                    ) {
-                        Text(
-                            if (offline?.status == CachedEpisodeStatus.Failed) "Повторить" else "Скачать",
-                            style = MaterialTheme.typography.labelMedium,
-                        )
-                    }
+                        label = if (offline?.status == CachedEpisodeStatus.Failed) "Retry" else "Download",
+                        variant = FpButtonVariant.Ghost,
+                        compact = true,
+                    )
                 }
             }
         }
@@ -432,25 +390,21 @@ private fun EpisodeRow(
 @Composable
 private fun OfflineBadge(offline: OfflineEpisodeState?) {
     val label = when (offline?.status) {
-        CachedEpisodeStatus.Ready -> "На устройстве"
+        CachedEpisodeStatus.Ready -> "Saved"
         CachedEpisodeStatus.Downloading -> "↓ ${(offline.progress * 100).toInt()}%"
-        CachedEpisodeStatus.Queued -> "В очереди"
-        CachedEpisodeStatus.Failed -> "Ошибка"
+        CachedEpisodeStatus.Queued -> "Queued"
+        CachedEpisodeStatus.Failed -> "Failed"
         null -> return
     }
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelSmall,
-        color = when (offline.status) {
-            CachedEpisodeStatus.Failed -> MaterialTheme.colorScheme.error
-            else -> MaterialTheme.colorScheme.tertiary
-        },
+    FpBadge(
+        label = label,
+        accent = offline.status != CachedEpisodeStatus.Failed,
     )
 }
 
 private enum class SeasonOfflineAction(val label: String) {
-    Download("Скачать сезон"),
-    None("Сезон скачан"),
+    Download("Download season"),
+    None("Season saved"),
 }
 
 private fun seasonOfflineLabel(
@@ -483,7 +437,6 @@ private fun DetailScaffold(
     focusableHeader: Boolean = false,
 ) {
     val context = LocalContext.current
-    // Trailer is an external (YouTube) link; ignore failure when no app can open it.
     val openTrailer: (() -> Unit)? = trailerUrl?.let { url ->
         { runCatching { context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url))) } }
     }
@@ -497,14 +450,15 @@ private fun DetailScaffold(
     val posterModel = artworkUrl(
         baseUrl = baseUrl,
         path = poster,
-        width = if (tv) 260 else 240,
-        height = if (tv) 390 else 360,
+        width = if (tv) 280 else 260,
+        height = if (tv) 420 else 390,
     )
-    val posterWidth = if (tv) 120.dp else 112.dp
+    val posterWidth = if (tv) 140.dp else 128.dp
     val hasActions = (onPlay != null && playLabel != null) ||
         (onPlayFromStart != null && playFromStartLabel != null) ||
         (onToggleWatched != null && watchedLabel != null) ||
         openTrailer != null
+    val shape = RoundedCornerShape(if (tv) FpDimens.radiusLg else 0.dp)
 
     Box(
         modifier = Modifier
@@ -512,18 +466,17 @@ private fun DetailScaffold(
             .then(
                 if (focusableHeader) {
                     Modifier
-                        .clip(RoundedCornerShape(TvDimens.corner))
-                        .tvFocusable(scaleFocused = 1f)
+                        .clip(shape)
+                        .tvFocusable(scaleFocused = 1f, shape = shape)
                 } else {
                     Modifier
                 },
             ),
     ) {
-        // Soft backdrop behind the poster + meta row (web hero pattern).
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clip(RoundedCornerShape(TvDimens.corner))
+                .clip(shape)
                 .background(MaterialTheme.colorScheme.surface),
         ) {
             if (backdropModel != null) {
@@ -532,154 +485,146 @@ private fun DetailScaffold(
                     contentDescription = null,
                     contentScale = ContentScale.Crop,
                     modifier = Modifier.fillMaxSize(),
-                    alpha = 0.4f,
+                    alpha = 0.42f,
                 )
             }
             Box(
                 Modifier
                     .fillMaxSize()
                     .background(
+                        Brush.verticalGradient(
+                            listOf(
+                                Color.Black.copy(0.35f),
+                                MaterialTheme.colorScheme.background.copy(alpha = 0.88f),
+                            ),
+                        ),
+                    ),
+            )
+            Box(
+                Modifier
+                    .fillMaxSize()
+                    .background(
                         Brush.horizontalGradient(
-                            listOf(Color.Black.copy(0.82f), Color.Black.copy(0.45f), Color.Transparent),
+                            listOf(Color.Black.copy(0.55f), Color.Transparent),
                         ),
                     ),
             )
         }
 
-        Row(
+        Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(if (tv) 18.dp else 16.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (tv) 18.dp else 14.dp),
+                .padding(
+                    horizontal = if (tv) FpDimens.space20 else FpDimens.contentPadHPhone,
+                    vertical = if (tv) FpDimens.space16 else FpDimens.space20,
+                ),
         ) {
-            // Poster "icon" matching the web detail layout.
-            Box(
-                modifier = Modifier
-                    .width(posterWidth)
-                    .aspectRatio(2f / 3f)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(if (tv) FpDimens.space20 else FpDimens.space14),
             ) {
-                if (posterModel != null) {
-                    AsyncImage(
-                        model = posterModel,
-                        contentDescription = title,
-                        contentScale = ContentScale.Crop,
-                        modifier = Modifier.fillMaxSize(),
-                    )
+                Box(
+                    modifier = Modifier
+                        .width(posterWidth)
+                        .aspectRatio(2f / 3f)
+                        .clip(RoundedCornerShape(FpDimens.radiusMd))
+                        .background(MaterialTheme.colorScheme.surfaceVariant),
+                ) {
+                    if (posterModel != null) {
+                        AsyncImage(
+                            model = posterModel,
+                            contentDescription = title,
+                            contentScale = ContentScale.Crop,
+                            modifier = Modifier.fillMaxSize(),
+                        )
+                    }
+                    MediaProgressBar(progress = progress, modifier = Modifier.align(Alignment.BottomStart))
                 }
-                ProgressBar(progress = progress, modifier = Modifier.align(Alignment.BottomStart))
-            }
-            Column(
-                modifier = Modifier
-                    .weight(1f)
-                    .align(Alignment.CenterVertically),
-                verticalArrangement = Arrangement.spacedBy(6.dp),
-            ) {
-                Text(
-                    title,
-                    style = if (tv) {
-                        MaterialTheme.typography.headlineMedium
-                    } else {
-                        MaterialTheme.typography.headlineSmall
-                    },
-                    fontWeight = FontWeight.Bold,
-                    maxLines = 3,
-                    overflow = TextOverflow.Ellipsis,
-                )
-                if (subtitle.isNotBlank()) {
+                Column(
+                    modifier = Modifier
+                        .weight(1f)
+                        .align(Alignment.CenterVertically),
+                    verticalArrangement = Arrangement.spacedBy(FpDimens.space6),
+                ) {
                     Text(
-                        subtitle,
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-                overview?.let {
-                    Text(
-                        it,
-                        style = MaterialTheme.typography.bodyMedium,
-                        maxLines = if (tv) 4 else 5,
+                        title,
+                        style = if (tv) {
+                            MaterialTheme.typography.headlineMedium
+                        } else {
+                            MaterialTheme.typography.headlineSmall
+                        },
+                        fontWeight = FontWeight.ExtraBold,
+                        maxLines = 3,
                         overflow = TextOverflow.Ellipsis,
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
                     )
-                }
-                if (hasActions) {
-                    Row(
-                        modifier = Modifier
-                            .padding(top = 4.dp)
-                            .then(
-                                if (!tv) {
-                                    Modifier.horizontalScroll(rememberScrollState())
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                    ) {
-                        if (onPlay != null && playLabel != null) {
-                            Button(
-                                onClick = onPlay,
-                                modifier = Modifier.tvFocusable(onClick = onPlay, scaleFocused = 1.05f),
-                            ) {
-                                Text(playLabel, style = MaterialTheme.typography.titleSmall)
-                            }
-                        }
-                        if (onPlayFromStart != null && playFromStartLabel != null) {
-                            OutlinedButton(
-                                onClick = onPlayFromStart,
-                                modifier = Modifier.tvFocusable(
-                                    onClick = onPlayFromStart,
-                                    scaleFocused = 1.05f,
-                                ),
-                            ) {
-                                Text(playFromStartLabel, style = MaterialTheme.typography.titleSmall)
-                            }
-                        }
-                        if (onToggleWatched != null && watchedLabel != null) {
-                            OutlinedButton(
-                                onClick = onToggleWatched,
-                                enabled = !watchedBusy,
-                                modifier = Modifier.tvFocusable(
-                                    onClick = onToggleWatched,
-                                    scaleFocused = 1.05f,
-                                ),
-                            ) {
-                                Text(watchedLabel, style = MaterialTheme.typography.titleSmall)
-                            }
-                        }
-                        if (openTrailer != null) {
-                            OutlinedButton(
-                                onClick = openTrailer,
-                                modifier = Modifier.tvFocusable(onClick = openTrailer, scaleFocused = 1.05f),
-                            ) {
-                                Text("Трейлер", style = MaterialTheme.typography.titleSmall)
-                            }
+                    if (subtitle.isNotBlank()) {
+                        Text(
+                            subtitle,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        )
+                    }
+                    if (tv) {
+                        overview?.let {
+                            Text(
+                                it,
+                                style = MaterialTheme.typography.bodyMedium,
+                                maxLines = 4,
+                                overflow = TextOverflow.Ellipsis,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
+                            )
                         }
                     }
                 }
             }
+            if (!tv) {
+                overview?.let {
+                    Text(
+                        it,
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 5,
+                        overflow = TextOverflow.Ellipsis,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
+                        modifier = Modifier.padding(top = FpDimens.space14),
+                    )
+                }
+            }
+            if (hasActions) {
+                Row(
+                    modifier = Modifier
+                        .padding(top = FpDimens.space14)
+                        .then(
+                            if (!tv) Modifier.horizontalScroll(rememberScrollState()) else Modifier,
+                        ),
+                    horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
+                ) {
+                    if (onPlay != null && playLabel != null) {
+                        FpButton(onClick = onPlay, label = playLabel)
+                    }
+                    if (onPlayFromStart != null && playFromStartLabel != null) {
+                        FpButton(
+                            onClick = onPlayFromStart,
+                            label = playFromStartLabel,
+                            variant = FpButtonVariant.Secondary,
+                        )
+                    }
+                    if (onToggleWatched != null && watchedLabel != null) {
+                        FpButton(
+                            onClick = onToggleWatched,
+                            enabled = !watchedBusy,
+                            label = watchedLabel,
+                            variant = FpButtonVariant.Secondary,
+                        )
+                    }
+                    if (openTrailer != null) {
+                        FpButton(
+                            onClick = openTrailer,
+                            label = "Trailer",
+                            variant = FpButtonVariant.Secondary,
+                        )
+                    }
+                }
+            }
         }
-    }
-}
-
-@Composable
-private fun ProgressBar(
-    progress: Float,
-    modifier: Modifier = Modifier,
-) {
-    if (progress <= 0f) return
-    Box(
-        modifier = modifier
-            .fillMaxWidth()
-            .height(4.dp)
-            .background(Color.Black.copy(alpha = 0.55f)),
-    ) {
-        Box(
-            modifier = Modifier
-                .fillMaxWidth(progress.coerceIn(0f, 1f))
-                .fillMaxHeight()
-                .background(MaterialTheme.colorScheme.primary),
-        )
     }
 }
 
@@ -690,23 +635,17 @@ private fun CastSection(
     tv: Boolean,
 ) {
     val avatar = if (tv) 76.dp else 68.dp
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = "Cast",
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(
-                start = if (tv) 0.dp else 0.dp,
-                top = 10.dp,
-                bottom = 8.dp,
-            ),
-        )
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone),
+    ) {
+        FpSectionTitle("Cast")
         LazyRow(
-            contentPadding = PaddingValues(horizontal = if (tv) TvDimens.focusHalo else 0.dp),
-            horizontalArrangement = Arrangement.spacedBy(if (tv) 14.dp else 12.dp),
+            contentPadding = PaddingValues(horizontal = if (tv) FpDimens.focusHalo else 0.dp),
+            horizontalArrangement = Arrangement.spacedBy(if (tv) FpDimens.space14 else FpDimens.space12),
             modifier = if (tv) Modifier.focusRestorer() else Modifier,
         ) {
-            // Positional keys: provider data can repeat a name.
             items(people.take(20)) { person ->
                 Column(
                     horizontalAlignment = Alignment.CenterHorizontally,
@@ -716,13 +655,13 @@ private fun CastSection(
                             if (tv) {
                                 Modifier.tvFocusable(
                                     scaleFocused = 1.05f,
-                                    shape = RoundedCornerShape(TvDimens.corner),
+                                    shape = RoundedCornerShape(FpDimens.radiusMd),
                                 )
                             } else {
                                 Modifier
                             },
                         )
-                        .padding(4.dp),
+                        .padding(FpDimens.space4),
                 ) {
                     Box(
                         modifier = Modifier
@@ -745,7 +684,7 @@ private fun CastSection(
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                         textAlign = TextAlign.Center,
-                        modifier = Modifier.padding(top = 5.dp),
+                        modifier = Modifier.padding(top = FpDimens.space4),
                     )
                     person.role?.let { role ->
                         Text(
@@ -763,7 +702,6 @@ private fun CastSection(
     }
 }
 
-/** Resume fraction for progress bars; 0 when unknown / fully watched. */
 private fun progressFraction(positionMs: Long?, runtimeMs: Long?): Float {
     val position = positionMs ?: return 0f
     val runtime = runtimeMs ?: return 0f
@@ -771,11 +709,6 @@ private fun progressFraction(positionMs: Long?, runtimeMs: Long?): Float {
     return (position.toFloat() / runtime.toFloat()).coerceIn(0f, 1f)
 }
 
-/**
- * Pick the episode the header Play button should start.
- * Prefer server `nextUp`, then an in-progress episode, then the first unwatched,
- * otherwise the first episode of the loaded season.
- */
 private fun resolveSeriesPlayTarget(
     nextUp: EpisodeSummary?,
     episodes: List<EpisodeSummary>,

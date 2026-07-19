@@ -15,7 +15,6 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -38,15 +37,18 @@ import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
 import com.freeplex.android.core.designsystem.EmptyState
 import com.freeplex.android.core.designsystem.ErrorState
+import com.freeplex.android.core.designsystem.FpButton
+import com.freeplex.android.core.designsystem.FpDimens
+import com.freeplex.android.core.designsystem.FpSectionTitle
 import com.freeplex.android.core.designsystem.FullPageLoading
 import com.freeplex.android.core.designsystem.PosterCard
-import com.freeplex.android.core.designsystem.TvContentPadding
-import com.freeplex.android.core.designsystem.TvDimens
+import com.freeplex.android.core.designsystem.fpPosterGap
 import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvFocusable
 import com.freeplex.android.core.model.MediaItemSummary
@@ -70,13 +72,8 @@ fun HomeScreen(
         else -> {
             val hero = state.sections.firstOrNull()?.items?.firstOrNull()
             val heroFocus = remember { FocusRequester() }
-            // Saveable so it survives back-navigation from Details: on return
-            // the rows' focusRestorer must win, not the hero grabbing focus again.
             var heroFocusRequested by rememberSaveable { mutableStateOf(false) }
             if (tv && hero != null) {
-                // Land D-pad focus on the content (hero) instead of the sidebar,
-                // on the first entry only. requestFocus throws if the node is
-                // not attached yet, hence runCatching.
                 LaunchedEffect(Unit) {
                     if (!heroFocusRequested) {
                         heroFocusRequested = true
@@ -86,57 +83,50 @@ fun HomeScreen(
             }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                contentPadding = if (tv) {
-                    PaddingValues(
-                        start = TvDimens.contentPadH,
-                        end = TvDimens.contentPadH,
-                        top = TvDimens.contentPadV,
-                        bottom = TvDimens.contentPadV + TvDimens.focusHalo,
-                    )
-                } else {
-                    PaddingValues(vertical = 12.dp)
-                },
+                contentPadding = PaddingValues(
+                    start = if (tv) FpDimens.contentPadHTv else 0.dp,
+                    end = if (tv) FpDimens.contentPadHTv else 0.dp,
+                    top = if (tv) FpDimens.contentPadVTv else 0.dp,
+                    bottom = if (tv) FpDimens.contentPadVTv + FpDimens.focusHalo else FpDimens.space16,
+                ),
             ) {
-                if (tv && hero != null) {
-                    item {
+                if (hero != null) {
+                    item(key = "hero") {
                         HomeHero(
                             item = hero,
                             baseUrl = state.baseUrl,
                             onOpen = { onOpenItem(hero.id) },
-                            modifier = Modifier.focusRequester(heroFocus),
+                            modifier = if (tv) Modifier.focusRequester(heroFocus) else Modifier,
+                            compact = !tv,
                         )
-                        Spacer(Modifier.height(TvDimens.sectionGap))
+                        Spacer(Modifier.height(if (tv) FpDimens.space16 else FpDimens.space12))
                     }
                 }
                 itemsIndexed(state.sections) { index, section ->
-                    val items = if (tv && index == 0 && hero != null) {
+                    val items = if (index == 0 && hero != null) {
                         section.items.drop(1).ifEmpty { section.items }
                     } else {
                         section.items
                     }
                     if (items.isEmpty()) return@itemsIndexed
-                    Column(modifier = Modifier.padding(bottom = if (tv) TvDimens.sectionGap else 16.dp)) {
-                        Text(
-                            section.title,
-                            style = if (tv) MaterialTheme.typography.titleMedium
-                            else MaterialTheme.typography.titleLarge,
-                            fontWeight = FontWeight.SemiBold,
+                    Column(
+                        modifier = Modifier.padding(
+                            bottom = if (tv) FpDimens.space16 else FpDimens.space20,
+                        ),
+                    ) {
+                        FpSectionTitle(
+                            title = section.title,
                             modifier = Modifier.padding(
-                                horizontal = if (tv) 0.dp else 16.dp,
-                                vertical = if (tv) 2.dp else 8.dp,
+                                horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone,
                             ),
                         )
                         LazyRow(
-                            // Re-entering the row with D-pad restores focus to
-                            // the card that was focused before opening details.
                             modifier = Modifier.focusRestorer(),
                             contentPadding = PaddingValues(
-                                horizontal = if (tv) TvDimens.focusHalo else 16.dp,
-                                vertical = if (tv) TvDimens.focusHalo else 0.dp,
+                                horizontal = if (tv) FpDimens.focusHalo else FpDimens.contentPadHPhone,
+                                vertical = if (tv) FpDimens.focusHalo else 0.dp,
                             ),
-                            horizontalArrangement = Arrangement.spacedBy(
-                                if (tv) TvDimens.posterGap else 10.dp,
-                            ),
+                            horizontalArrangement = Arrangement.spacedBy(fpPosterGap()),
                         ) {
                             items(items, key = { it.id }) { item ->
                                 PosterCard(
@@ -159,7 +149,9 @@ private fun HomeHero(
     baseUrl: String,
     onOpen: () -> Unit,
     modifier: Modifier = Modifier,
+    compact: Boolean = false,
 ) {
+    val tv = isTvDevice()
     val backdrop = item.artwork.backdrop ?: item.artwork.poster ?: item.artwork.thumb
     val model = artworkUrl(
         baseUrl = baseUrl,
@@ -168,12 +160,17 @@ private fun HomeHero(
         height = 720,
         quality = 70,
     )
+    val shape = if (compact) {
+        RoundedCornerShape(0.dp)
+    } else {
+        RoundedCornerShape(FpDimens.radiusLg)
+    }
     Box(
         modifier = modifier
             .fillMaxWidth()
-            .height(TvDimens.heroHeight)
-            .clip(RoundedCornerShape(TvDimens.corner))
-            .tvFocusable(onClick = onOpen, scaleFocused = 1.015f),
+            .height(if (compact) FpDimens.heroPhone else FpDimens.heroTv)
+            .then(if (!compact) Modifier.clip(shape) else Modifier)
+            .tvFocusable(onClick = onOpen, scaleFocused = if (tv) 1.015f else 1f, shape = shape),
     ) {
         if (model != null) {
             AsyncImage(
@@ -189,8 +186,12 @@ private fun HomeHero(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.horizontalGradient(
-                        listOf(Color.Black.copy(alpha = 0.82f), Color.Transparent),
+                    Brush.verticalGradient(
+                        listOf(
+                            Color.Transparent,
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.35f),
+                            MaterialTheme.colorScheme.background.copy(alpha = 0.92f),
+                        ),
                     ),
                 ),
         )
@@ -198,22 +199,32 @@ private fun HomeHero(
             modifier = Modifier
                 .fillMaxSize()
                 .background(
-                    Brush.verticalGradient(
-                        listOf(Color.Transparent, Color.Black.copy(alpha = 0.55f)),
+                    Brush.horizontalGradient(
+                        listOf(Color.Black.copy(alpha = 0.72f), Color.Transparent),
                     ),
                 ),
         )
         Column(
             modifier = Modifier
                 .align(Alignment.BottomStart)
-                .padding(horizontal = 18.dp, vertical = 14.dp)
-                .fillMaxWidth(0.52f),
-            verticalArrangement = Arrangement.spacedBy(4.dp),
+                .padding(
+                    horizontal = if (compact) FpDimens.contentPadHPhone else FpDimens.space20,
+                    vertical = if (compact) FpDimens.space16 else FpDimens.space16,
+                )
+                .fillMaxWidth(if (tv) 0.55f else 0.92f),
+            verticalArrangement = Arrangement.spacedBy(FpDimens.space6),
         ) {
             Text(
+                text = "FEATURED",
+                style = MaterialTheme.typography.labelMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.primary,
+                letterSpacing = 1.6.sp,
+            )
+            Text(
                 text = item.title,
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
+                style = if (tv) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
+                fontWeight = FontWeight.ExtraBold,
                 maxLines = 2,
                 overflow = TextOverflow.Ellipsis,
             )
@@ -227,12 +238,7 @@ private fun HomeHero(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            Button(
-                onClick = onOpen,
-                modifier = Modifier.tvFocusable(onClick = onOpen, scaleFocused = 1.04f),
-            ) {
-                Text("Open", style = MaterialTheme.typography.labelLarge)
-            }
+            FpButton(onClick = onOpen, label = "Open")
         }
     }
 }

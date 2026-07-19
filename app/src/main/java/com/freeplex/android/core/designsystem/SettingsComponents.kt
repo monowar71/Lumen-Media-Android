@@ -1,6 +1,7 @@
 package com.freeplex.android.core.designsystem
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ColumnScope
@@ -10,7 +11,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.AlertDialog
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -42,19 +42,20 @@ fun SettingsClickRow(
     enabled: Boolean = true,
 ) {
     val tv = isTvDevice()
+    val shape = RoundedCornerShape(FpDimens.radiusMd)
     Column(
         modifier = modifier
             .fillMaxWidth()
             .tvFocusable(
                 onClick = if (enabled) onClick else null,
-                scaleFocused = if (tv) 1.02f else 1.04f,
-                shape = RoundedCornerShape(TvDimens.corner),
+                scaleFocused = if (tv) 1.02f else 1.02f,
+                shape = shape,
             )
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (tv) 0.35f else 0.55f),
-                shape = RoundedCornerShape(TvDimens.corner),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                shape = shape,
             )
-            .padding(horizontal = 16.dp, vertical = if (tv) 14.dp else 12.dp),
+            .padding(horizontal = FpDimens.space14, vertical = if (tv) 12.dp else 10.dp),
     ) {
         Text(
             text = title,
@@ -82,7 +83,7 @@ fun SettingsClickRow(
             } else {
                 MaterialTheme.colorScheme.onSurfaceVariant
             },
-            modifier = Modifier.padding(top = 4.dp),
+            modifier = Modifier.padding(top = FpDimens.space4),
         )
     }
 }
@@ -97,19 +98,20 @@ fun SettingsActionRow(
     enabled: Boolean = true,
 ) {
     val tv = isTvDevice()
+    val shape = RoundedCornerShape(FpDimens.radiusMd)
     Column(
         modifier = modifier
             .fillMaxWidth()
             .tvFocusable(
                 onClick = if (enabled) onClick else null,
-                scaleFocused = if (tv) 1.02f else 1.04f,
-                shape = RoundedCornerShape(TvDimens.corner),
+                scaleFocused = if (tv) 1.02f else 1.02f,
+                shape = shape,
             )
             .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (tv) 0.35f else 0.55f),
-                shape = RoundedCornerShape(TvDimens.corner),
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+                shape = shape,
             )
-            .padding(horizontal = 16.dp, vertical = if (tv) 14.dp else 12.dp),
+            .padding(horizontal = FpDimens.space14, vertical = if (tv) 12.dp else 10.dp),
     ) {
         Text(
             text = title,
@@ -139,14 +141,17 @@ fun SettingsSection(
     content: @Composable ColumnScope.() -> Unit,
 ) {
     Column(
-        modifier = modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+        modifier = modifier
+            .fillMaxWidth()
+            .clipSurface(RoundedCornerShape(FpDimens.radiusXl))
+            .padding(FpDimens.space16),
+        verticalArrangement = Arrangement.spacedBy(FpDimens.space8),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(top = 8.dp, bottom = 2.dp),
+            modifier = Modifier.padding(bottom = FpDimens.space4),
         )
         content()
     }
@@ -160,32 +165,23 @@ fun SettingsChoiceRow(
     onSelect: (String) -> Unit,
     modifier: Modifier = Modifier,
 ) {
-    val tv = isTvDevice()
     Column(
         modifier = modifier
             .fillMaxWidth()
-            .background(
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = if (tv) 0.35f else 0.55f),
-                shape = RoundedCornerShape(TvDimens.corner),
-            )
-            .padding(horizontal = 16.dp, vertical = if (tv) 14.dp else 12.dp),
-        verticalArrangement = Arrangement.spacedBy(8.dp),
+            .padding(vertical = FpDimens.space4),
+        verticalArrangement = Arrangement.spacedBy(FpDimens.space8),
     ) {
         Text(
             text = title,
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
         )
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(horizontalArrangement = Arrangement.spacedBy(FpDimens.space8)) {
             options.forEach { (id, label) ->
-                FilterChip(
+                FpChip(
+                    label = label,
                     selected = selectedId == id,
                     onClick = { onSelect(id) },
-                    label = { Text(text = label) },
-                    modifier = Modifier.tvFocusable(
-                        onClick = { onSelect(id) },
-                        scaleFocused = 1.05f,
-                    ),
                 )
             }
         }
@@ -206,7 +202,8 @@ fun EditTextDialog(
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = title) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text(text = title, fontWeight = FontWeight.Bold) },
         text = {
             FpTextField(
                 value = draft,
@@ -218,7 +215,7 @@ fun EditTextDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(draft.trim()) }) {
-                Text(text = "Save")
+                Text(text = "Save", color = MaterialTheme.colorScheme.primary)
             }
         },
         dismissButton = {
@@ -240,28 +237,23 @@ fun EditNumberDialog(
 ) {
     var draft by remember(initialValue) { mutableStateOf(initialValue.toString()) }
     val focusRequester = remember { FocusRequester() }
-    // Only pull focus onto the field after the dialog is visible — avoids the
-    // settings-list IME trap where every row was itself an OutlinedTextField.
     LaunchedEffect(Unit) { focusRequester.requestFocus() }
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = title) },
+        containerColor = MaterialTheme.colorScheme.surface,
+        title = { Text(text = title, fontWeight = FontWeight.Bold) },
         text = {
-            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            Column(verticalArrangement = Arrangement.spacedBy(FpDimens.space10)) {
                 if (presets.isNotEmpty()) {
                     Row(
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
                         verticalAlignment = Alignment.CenterVertically,
                     ) {
                         presets.forEach { (labelText, value) ->
-                            FilterChip(
+                            FpChip(
+                                label = labelText,
                                 selected = draft.toIntOrNull() == value,
                                 onClick = { draft = value.toString() },
-                                label = { Text(text = labelText) },
-                                modifier = Modifier.tvFocusable(
-                                    onClick = { draft = value.toString() },
-                                    scaleFocused = 1.05f,
-                                ),
                             )
                         }
                     }
@@ -277,7 +269,7 @@ fun EditNumberDialog(
         },
         confirmButton = {
             TextButton(onClick = { onConfirm(draft.toIntOrNull() ?: 0) }) {
-                Text(text = "Save")
+                Text(text = "Save", color = MaterialTheme.colorScheme.primary)
             }
         },
         dismissButton = {
@@ -298,3 +290,16 @@ fun formatByteSize(bytes: Long): String {
     val gb = mb / 1024.0
     return String.format("%.1f GB", gb)
 }
+
+@Composable
+private fun Modifier.clipSurface(shape: RoundedCornerShape): Modifier =
+    this
+        .background(
+            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.85f),
+            shape = shape,
+        )
+        .border(
+            width = 1.dp,
+            color = MaterialTheme.colorScheme.outline.copy(alpha = 0.55f),
+            shape = shape,
+        )

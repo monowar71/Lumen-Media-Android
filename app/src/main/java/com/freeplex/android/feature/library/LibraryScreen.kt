@@ -1,6 +1,5 @@
 package com.freeplex.android.feature.library
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -17,7 +16,6 @@ import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
 import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -28,21 +26,22 @@ import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeplex.android.core.designsystem.EmptyState
 import com.freeplex.android.core.designsystem.ErrorState
+import com.freeplex.android.core.designsystem.FpChip
+import com.freeplex.android.core.designsystem.FpDimens
 import com.freeplex.android.core.designsystem.FpTextField
 import com.freeplex.android.core.designsystem.FullPageLoading
 import com.freeplex.android.core.designsystem.PosterCard
-import com.freeplex.android.core.designsystem.TvContentPadding
-import com.freeplex.android.core.designsystem.TvDimens
+import com.freeplex.android.core.designsystem.fpContentPadding
+import com.freeplex.android.core.designsystem.fpPosterGap
 import com.freeplex.android.core.designsystem.isTvDevice
-import com.freeplex.android.core.designsystem.tvFocusable
 import com.freeplex.android.core.preferences.LibrarySort
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
@@ -56,8 +55,7 @@ fun LibraryScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tv = isTvDevice()
-    // Cell sized to poster + focus halo so titles/edges are not clipped.
-    val minCell = if (tv) TvDimens.gridMinCell else 120.dp
+    val minCell = if (tv) FpDimens.gridMinCellTv else FpDimens.gridMinCellPhone
 
     if (state.loading) {
         FullPageLoading()
@@ -70,46 +68,36 @@ fun LibraryScreen(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(if (tv) TvContentPadding else PaddingValues(horizontal = 12.dp)),
+            .padding(fpContentPadding()),
     ) {
         Text(
             text = state.library?.name ?: "Library",
             style = MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
-            modifier = Modifier.padding(bottom = if (tv) 6.dp else 12.dp),
+            fontWeight = FontWeight.ExtraBold,
+            letterSpacing = (-0.2).sp,
         )
-        // Phone keeps chips; TV switches libraries from the left sidebar.
+        state.library?.let { lib ->
+            Text(
+                text = "${lib.itemCount} titles",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(top = FpDimens.space2, bottom = FpDimens.space12),
+            )
+        } ?: SpacerBottom()
+
         if (!tv && state.libraries.isNotEmpty()) {
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
                     .horizontalScroll(rememberScrollState())
-                    .padding(bottom = 16.dp),
-                horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    .padding(bottom = FpDimens.space12),
+                horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
             ) {
                 state.libraries.forEach { lib ->
-                    val selected = lib.id == state.library?.id
-                    Text(
-                        text = lib.name,
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        color = if (selected) {
-                            MaterialTheme.colorScheme.onPrimary
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        modifier = Modifier
-                            .tvFocusable(
-                                onClick = { onSelectLibrary(lib.id) },
-                                scaleFocused = 1.06f,
-                                shape = RoundedCornerShape(28.dp),
-                            )
-                            .clip(RoundedCornerShape(28.dp))
-                            .background(
-                                if (selected) MaterialTheme.colorScheme.primary
-                                else MaterialTheme.colorScheme.surfaceVariant,
-                            )
-                            .padding(horizontal = 22.dp, vertical = 12.dp),
+                    FpChip(
+                        label = lib.name,
+                        selected = lib.id == state.library?.id,
+                        onClick = { onSelectLibrary(lib.id) },
                     )
                 }
             }
@@ -117,31 +105,29 @@ fun LibraryScreen(
         if (!tv) {
             FpTextField(
                 value = state.query,
-                // Reload is debounced inside the ViewModel.
                 onValueChange = viewModel::onQueryChange,
                 label = "Filter",
             )
         }
-        // Sort controls: mirror the web client's library toolbar.
         Row(
             modifier = Modifier
                 .fillMaxWidth()
                 .horizontalScroll(rememberScrollState())
-                .padding(top = if (tv) 0.dp else 10.dp, bottom = if (tv) 8.dp else 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                .padding(top = if (tv) 0.dp else FpDimens.space10, bottom = FpDimens.space10),
+            horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
         ) {
-            SortChip(
-                label = "By name",
+            FpChip(
+                label = "Name",
                 selected = state.sort == LibrarySort.Name,
                 onClick = { viewModel.onSortChange(LibrarySort.Name) },
             )
-            SortChip(
+            FpChip(
                 label = "Recently added",
                 selected = state.sort == LibrarySort.Added,
                 onClick = { viewModel.onSortChange(LibrarySort.Added) },
             )
-            SortChip(
-                label = "In progress first",
+            FpChip(
+                label = "In progress",
                 selected = state.inProgressFirst,
                 onClick = { viewModel.onInProgressFirstChange(!state.inProgressFirst) },
             )
@@ -150,7 +136,6 @@ fun LibraryScreen(
             EmptyState(title = "Nothing here", body = "Try another library or scan media files.")
         } else {
             val gridState = rememberLazyGridState()
-            // Fetch the next page when scrolling (touch or D-pad) approaches the end.
             LaunchedEffect(gridState) {
                 snapshotFlow {
                     val info = gridState.layoutInfo
@@ -165,16 +150,13 @@ fun LibraryScreen(
                 state = gridState,
                 columns = GridCells.Adaptive(minSize = minCell),
                 contentPadding = PaddingValues(
-                    top = if (tv) TvDimens.focusHalo else 4.dp,
-                    bottom = if (tv) 28.dp else 16.dp,
-                    start = if (tv) TvDimens.focusHalo else 0.dp,
-                    // Extra end inset — Adaptive grids otherwise kiss the right overscan edge.
-                    end = if (tv) TvDimens.focusHalo + 8.dp else 0.dp,
+                    top = if (tv) FpDimens.focusHalo else FpDimens.space4,
+                    bottom = if (tv) 28.dp else FpDimens.space16,
+                    start = if (tv) FpDimens.focusHalo else 0.dp,
+                    end = if (tv) FpDimens.focusHalo + 8.dp else 0.dp,
                 ),
-                horizontalArrangement = Arrangement.spacedBy(if (tv) TvDimens.posterGap else 12.dp),
-                verticalArrangement = Arrangement.spacedBy(if (tv) 12.dp else 14.dp),
-                // Restore D-pad focus to the last focused card when the user
-                // comes back from details instead of resetting to the sidebar.
+                horizontalArrangement = Arrangement.spacedBy(fpPosterGap()),
+                verticalArrangement = Arrangement.spacedBy(if (tv) FpDimens.space14 else FpDimens.space16),
                 modifier = Modifier
                     .fillMaxSize()
                     .focusRestorer(),
@@ -184,8 +166,6 @@ fun LibraryScreen(
                         item = item,
                         baseUrl = state.baseUrl,
                         onClick = { onOpenItem(item.id) },
-                        // Adaptive cells are usually wider than the minimum;
-                        // stretch the card so the grid does not look ragged.
                         fixedWidth = false,
                         modifier = Modifier.fillMaxWidth(),
                     )
@@ -195,12 +175,13 @@ fun LibraryScreen(
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 16.dp),
+                                .padding(vertical = FpDimens.space16),
                             contentAlignment = Alignment.Center,
                         ) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(28.dp),
                                 color = MaterialTheme.colorScheme.primary,
+                                strokeWidth = 3.dp,
                             )
                         }
                     }
@@ -211,31 +192,6 @@ fun LibraryScreen(
 }
 
 @Composable
-private fun SortChip(
-    label: String,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Text(
-        text = label,
-        style = MaterialTheme.typography.labelLarge,
-        fontWeight = FontWeight.SemiBold,
-        color = if (selected) {
-            MaterialTheme.colorScheme.onPrimary
-        } else {
-            MaterialTheme.colorScheme.onSurfaceVariant
-        },
-        modifier = Modifier
-            .tvFocusable(
-                onClick = onClick,
-                scaleFocused = 1.06f,
-                shape = RoundedCornerShape(20.dp),
-            )
-            .clip(RoundedCornerShape(20.dp))
-            .background(
-                if (selected) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceVariant,
-            )
-            .padding(horizontal = 14.dp, vertical = 7.dp),
-    )
+private fun SpacerBottom() {
+    Box(Modifier.padding(bottom = FpDimens.space12))
 }

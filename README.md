@@ -28,9 +28,11 @@ Default API base URL for emulator: `http://10.0.2.2:8096` (host loopback).
 (`apksigner` / Play App Signing) and prefer AAB via `:app:bundleRelease` once a keystore is configured
 in `app/build.gradle.kts` (do not commit keystore files or passwords).
 
-## Screens (web parity for current phase)
+## Screens (web-aligned UI)
 
-Login/setup, Home, Library grid, Item details (movie/series + episode/season download), Search, Settings (TV-safe rows, caps, offline cache, admin libraries), Player (quality selector, offline Direct Play, progress, session ping/stop).
+Login/setup, Home (hero + shelves), Library grid, Item details, Search, Settings (TV-safe rows, caps, offline cache, admin libraries), Player.
+
+Design tokens match the web client (`#0f1014` / `#1a1c23` / accent `#e5a00d`, Manrope): see `core/designsystem/` (`Theme`, `FpDimens`, `Components`). Phone uses bottom nav; TV uses left sidebar with D-pad focus rings.
 
 ## Tests
 
