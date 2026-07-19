@@ -19,6 +19,9 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -31,11 +34,16 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.freeplex.android.core.designsystem.EditTextDialog
+import com.freeplex.android.core.designsystem.EmptyState
+import com.freeplex.android.core.designsystem.FpDimens
+import com.freeplex.android.core.designsystem.FpSectionTitle
 import com.freeplex.android.core.designsystem.FpTextField
 import com.freeplex.android.core.designsystem.FullPageLoading
 import com.freeplex.android.core.designsystem.PosterCard
-import com.freeplex.android.core.designsystem.TvContentPadding
-import com.freeplex.android.core.designsystem.TvDimens
+import com.freeplex.android.core.designsystem.SettingsClickRow
+import com.freeplex.android.core.designsystem.fpContentPadding
+import com.freeplex.android.core.designsystem.fpPosterGap
 import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvFocusable
 import com.freeplex.android.core.model.EpisodeSummary
@@ -50,50 +58,91 @@ fun SearchScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tv = isTvDevice()
+    var editQuery by remember { mutableStateOf(false) }
+
+    if (editQuery) {
+        EditTextDialog(
+            title = "Search",
+            initialValue = state.query,
+            label = "Movies, shows…",
+            onDismiss = { editQuery = false },
+            onConfirm = {
+                viewModel.onQueryChange(it)
+                editQuery = false
+            },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(if (tv) TvContentPadding else PaddingValues(16.dp)),
+            .padding(fpContentPadding()),
     ) {
         Text(
             "Search",
-            style = if (tv) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            style = MaterialTheme.typography.headlineSmall,
+            fontWeight = FontWeight.ExtraBold,
         )
-        FpTextField(state.query, viewModel::onQueryChange, "Movies, shows…")
+        if (tv) {
+            SettingsClickRow(
+                title = "Query",
+                value = state.query.ifBlank { "Tap OK to type…" },
+                subtitle = "Opens keyboard only when editing",
+                onClick = { editQuery = true },
+                modifier = Modifier.padding(top = FpDimens.space12, bottom = FpDimens.space8),
+            )
+        } else {
+            FpTextField(
+                state.query,
+                viewModel::onQueryChange,
+                "Movies, shows…",
+                modifier = Modifier.padding(top = FpDimens.space12),
+            )
+        }
         when {
             state.loading -> FullPageLoading()
-            state.error != null -> Text(state.error!!, color = MaterialTheme.colorScheme.error)
-            else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(top = 12.dp)) {
+            state.error != null -> Text(
+                state.error!!,
+                color = MaterialTheme.colorScheme.error,
+                modifier = Modifier.padding(top = FpDimens.space16),
+            )
+            state.query.isBlank() -> EmptyState(
+                title = "Find something to watch",
+                body = "Search movies, series, and episodes.",
+                modifier = Modifier.weight(1f),
+            )
+            state.movies.isEmpty() && state.series.isEmpty() && state.episodes.isEmpty() -> EmptyState(
+                title = "No results",
+                body = "Try another title or spelling.",
+                modifier = Modifier.weight(1f),
+            )
+            else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(top = FpDimens.space8)) {
                 if (state.movies.isNotEmpty()) {
-                    item(key = "movies-header") { SectionHeader("Movies") }
+                    item(key = "movies-header") { FpSectionTitle("Movies") }
                     item(key = "movies-row") {
                         PosterResultRow(
                             items = state.movies,
                             baseUrl = state.baseUrl,
-                            tv = tv,
                             onOpenItem = onOpenItem,
                         )
                     }
                 }
                 if (state.series.isNotEmpty()) {
-                    item(key = "series-header") { SectionHeader("Series") }
+                    item(key = "series-header") { FpSectionTitle("Series") }
                     item(key = "series-row") {
                         PosterResultRow(
                             items = state.series,
                             baseUrl = state.baseUrl,
-                            tv = tv,
                             onOpenItem = onOpenItem,
                         )
                     }
                 }
                 if (state.episodes.isNotEmpty()) {
-                    item(key = "episodes-header") { SectionHeader("Episodes") }
+                    item(key = "episodes-header") { FpSectionTitle("Episodes") }
                     items(state.episodes, key = { it.id }) { ep ->
                         EpisodeResultRow(
                             episode = ep,
                             baseUrl = state.baseUrl,
-                            tv = tv,
                             onClick = { onOpenItem(ep.id) },
                         )
                     }
@@ -103,32 +152,21 @@ fun SearchScreen(
     }
 }
 
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleLarge,
-        fontWeight = FontWeight.Bold,
-        modifier = Modifier.padding(vertical = 8.dp),
-    )
-}
-
 @OptIn(ExperimentalComposeUiApi::class)
 @Composable
 private fun PosterResultRow(
     items: List<MediaItemSummary>,
     baseUrl: String,
-    tv: Boolean,
     onOpenItem: (String) -> Unit,
 ) {
+    val tv = isTvDevice()
     LazyRow(
-        // Re-entering the row with D-pad restores focus to the last card.
         modifier = Modifier.focusRestorer(),
         contentPadding = PaddingValues(
-            horizontal = if (tv) TvDimens.focusHalo else 0.dp,
-            vertical = if (tv) TvDimens.focusHalo else 4.dp,
+            horizontal = if (tv) FpDimens.focusHalo else 0.dp,
+            vertical = if (tv) FpDimens.focusHalo else FpDimens.space4,
         ),
-        horizontalArrangement = Arrangement.spacedBy(if (tv) TvDimens.posterGap else 10.dp),
+        horizontalArrangement = Arrangement.spacedBy(fpPosterGap()),
     ) {
         items(items, key = { it.id }) { item ->
             PosterCard(
@@ -144,28 +182,32 @@ private fun PosterResultRow(
 private fun EpisodeResultRow(
     episode: EpisodeSummary,
     baseUrl: String,
-    tv: Boolean,
     onClick: () -> Unit,
 ) {
+    val tv = isTvDevice()
     val thumb = artworkUrl(
         baseUrl = baseUrl,
         path = episode.artwork.thumb ?: episode.artwork.poster,
         width = 320,
         height = 180,
     )
+    val shape = RoundedCornerShape(FpDimens.radiusMd)
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .tvFocusable(onClick = onClick, scaleFocused = 1.015f)
-            .padding(horizontal = 6.dp, vertical = if (tv) 6.dp else 8.dp),
+            .padding(vertical = FpDimens.space4)
+            .tvFocusable(onClick = onClick, scaleFocused = 1.015f, shape = shape)
+            .clip(shape)
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
+            .padding(FpDimens.space10),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        horizontalArrangement = Arrangement.spacedBy(FpDimens.space12),
     ) {
         Box(
             modifier = Modifier
-                .width(if (tv) 140.dp else 120.dp)
-                .height(if (tv) 78.dp else 68.dp)
-                .clip(RoundedCornerShape(TvDimens.corner))
+                .width(if (tv) FpDimens.episodeThumbWTv else FpDimens.episodeThumbW)
+                .height(if (tv) FpDimens.episodeThumbHTv else FpDimens.episodeThumbH)
+                .clip(shape)
                 .background(MaterialTheme.colorScheme.surfaceVariant),
         ) {
             if (thumb != null) {
@@ -193,7 +235,7 @@ private fun EpisodeResultRow(
                     style = MaterialTheme.typography.bodySmall,
                     maxLines = if (tv) 1 else 2,
                     overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.padding(top = 2.dp),
+                    modifier = Modifier.padding(top = FpDimens.space2),
                 )
             }
         }

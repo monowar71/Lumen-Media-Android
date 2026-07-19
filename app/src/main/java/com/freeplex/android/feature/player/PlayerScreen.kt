@@ -81,6 +81,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
 import com.freeplex.android.core.designsystem.ErrorState
+import com.freeplex.android.core.designsystem.FpColors
+import com.freeplex.android.core.designsystem.FpDimens
 import com.freeplex.android.core.designsystem.TvFocusColor
 import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvFocusable
@@ -743,9 +745,9 @@ private fun QualityDropdown(
     Column(
         modifier = modifier
             .widthIn(min = 200.dp, max = 280.dp)
-            .clip(RoundedCornerShape(12.dp))
-            .background(Color(0xF0161B24))
-            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .clip(RoundedCornerShape(FpDimens.radiusMd))
+            .background(FpColors.Surface.copy(alpha = 0.96f))
+            .border(1.dp, FpColors.Border.copy(alpha = 0.8f), RoundedCornerShape(FpDimens.radiusMd))
             .padding(vertical = 6.dp)
             .heightIn(max = 320.dp)
             .verticalScroll(rememberScrollState()),
@@ -764,10 +766,10 @@ private fun QualityDropdown(
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp)
                     .then(if (selected) Modifier.focusRequester(selectedFocus) else Modifier)
-                    .tvFocusable(onClick = { onSelect(q.id) }, shape = RoundedCornerShape(8.dp))
-                    .clip(RoundedCornerShape(8.dp))
+                    .tvFocusable(onClick = { onSelect(q.id) }, shape = RoundedCornerShape(FpDimens.radiusSm))
+                    .clip(RoundedCornerShape(FpDimens.radiusSm))
                     .background(
-                        if (selected) Color.White.copy(alpha = 0.10f) else Color.Transparent,
+                        if (selected) FpColors.AccentSoft else Color.Transparent,
                     )
                     .padding(horizontal = 10.dp, vertical = 8.dp),
             ) {

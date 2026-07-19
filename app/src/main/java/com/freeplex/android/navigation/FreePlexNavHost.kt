@@ -14,12 +14,10 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Home
 import androidx.compose.material.icons.filled.Movie
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Tv
@@ -28,13 +26,13 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.NavigationBar
 import androidx.compose.material3.NavigationBarItem
+import androidx.compose.material3.NavigationBarItemDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -47,8 +45,9 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.freeplex.android.core.designsystem.FpBrandMark
+import com.freeplex.android.core.designsystem.FpDimens
 import com.freeplex.android.core.designsystem.FullPageLoading
-import com.freeplex.android.core.designsystem.TvDimens
 import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvNavItem
 import com.freeplex.android.feature.auth.AuthStatus
@@ -87,7 +86,6 @@ fun FreePlexNavHost(
     }
 
     fun goLibrary(id: String) {
-        // Do not restoreState — otherwise libraryId args/ViewModel stay stale.
         navController.navigate(Routes.library(id)) {
             popUpTo(navController.graph.findStartDestination().id) { saveState = true }
             launchSingleTop = true
@@ -222,13 +220,25 @@ private fun MainScaffold(
         }
     } else {
         Scaffold(
+            containerColor = MaterialTheme.colorScheme.background,
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.96f),
+                    tonalElevation = 0.dp,
+                ) {
+                    val colors = NavigationBarItemDefaults.colors(
+                        selectedIconColor = MaterialTheme.colorScheme.primary,
+                        selectedTextColor = MaterialTheme.colorScheme.primary,
+                        indicatorColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.16f),
+                        unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                        unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
                     NavigationBarItem(
                         selected = currentRoute == Routes.Home,
                         onClick = { onNavigate(Routes.Home) },
                         icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                        label = { Text("Home") },
+                        label = { Text("Home", style = MaterialTheme.typography.labelMedium) },
+                        colors = colors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Routes.Library,
@@ -237,19 +247,22 @@ private fun MainScaffold(
                             else onNavigate(Routes.Settings)
                         },
                         icon = { Icon(Icons.Default.VideoLibrary, contentDescription = "Library") },
-                        label = { Text("Library") },
+                        label = { Text("Library", style = MaterialTheme.typography.labelMedium) },
+                        colors = colors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Routes.Search,
                         onClick = { onNavigate(Routes.Search) },
                         icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        label = { Text("Search") },
+                        label = { Text("Search", style = MaterialTheme.typography.labelMedium) },
+                        colors = colors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Routes.Settings,
                         onClick = { onNavigate(Routes.Settings) },
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
+                        label = { Text("Settings", style = MaterialTheme.typography.labelMedium) },
+                        colors = colors,
                     )
                 }
             },
@@ -273,32 +286,19 @@ private fun TvSideBar(
 ) {
     Column(
         modifier = Modifier
-            .width(TvDimens.sidebarWidth)
+            .width(FpDimens.sidebarWidth)
             .fillMaxHeight()
             .background(MaterialTheme.colorScheme.surface)
-            .padding(horizontal = 8.dp, vertical = 14.dp)
+            .padding(horizontal = FpDimens.space10, vertical = FpDimens.space16)
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(1.dp),
+        verticalArrangement = Arrangement.spacedBy(2.dp),
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            modifier = Modifier.padding(horizontal = 8.dp, vertical = 6.dp),
+            horizontalArrangement = Arrangement.spacedBy(FpDimens.space10),
+            modifier = Modifier.padding(horizontal = FpDimens.space8, vertical = FpDimens.space6),
         ) {
-            Box(
-                modifier = Modifier
-                    .size(28.dp)
-                    .clip(RoundedCornerShape(7.dp))
-                    .background(MaterialTheme.colorScheme.primary),
-                contentAlignment = Alignment.Center,
-            ) {
-                Icon(
-                    Icons.Default.PlayArrow,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier.size(16.dp),
-                )
-            }
+            FpBrandMark(size = 30.dp)
             Text(
                 text = "FreePlex",
                 style = MaterialTheme.typography.titleMedium,
@@ -306,18 +306,18 @@ private fun TvSideBar(
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(FpDimens.space12))
         TvSectionLabel("Browse")
         TvNavRow("Home", Icons.Default.Home, currentRoute == Routes.Home, onHome)
         TvNavRow("Search", Icons.Default.Search, currentRoute == Routes.Search, onSearch)
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(FpDimens.space12))
         TvSectionLabel("Libraries")
         if (libraries.isEmpty()) {
             Text(
                 text = "No libraries",
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                modifier = Modifier.padding(horizontal = FpDimens.space12, vertical = FpDimens.space6),
             )
         } else {
             libraries.forEach { (id, name, type) ->
@@ -336,7 +336,7 @@ private fun TvSideBar(
                 )
             }
         }
-        Spacer(Modifier.height(10.dp))
+        Spacer(Modifier.height(FpDimens.space12))
         TvSectionLabel("Manage")
         TvNavRow("Settings", Icons.Default.Settings, currentRoute == Routes.Settings, onSettings)
     }
@@ -349,7 +349,7 @@ private fun TvSectionLabel(text: String) {
         style = MaterialTheme.typography.labelSmall,
         fontWeight = FontWeight.SemiBold,
         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f),
-        modifier = Modifier.padding(horizontal = 12.dp, vertical = 4.dp),
+        modifier = Modifier.padding(horizontal = FpDimens.space12, vertical = FpDimens.space4),
     )
 }
 
@@ -365,7 +365,7 @@ private fun TvNavRow(
             .fillMaxWidth()
             .tvNavItem(selected = selected, onClick = onClick),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        horizontalArrangement = Arrangement.spacedBy(FpDimens.space10),
     ) {
         Icon(
             imageVector = icon,

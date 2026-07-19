@@ -24,6 +24,7 @@ import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeplex.android.core.designsystem.EditNumberDialog
 import com.freeplex.android.core.designsystem.EditTextDialog
+import com.freeplex.android.core.designsystem.FpDimens
 import com.freeplex.android.core.designsystem.SettingsActionRow
 import com.freeplex.android.core.designsystem.SettingsChoiceRow
 import com.freeplex.android.core.designsystem.SettingsClickRow
@@ -186,17 +187,18 @@ fun SettingsScreen(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(if (tv) TvContentPadding else androidx.compose.foundation.layout.PaddingValues(16.dp)),
-        verticalArrangement = Arrangement.spacedBy(if (tv) 12.dp else 10.dp),
+            .padding(if (tv) TvContentPadding else androidx.compose.foundation.layout.PaddingValues(FpDimens.space16)),
+        verticalArrangement = Arrangement.spacedBy(FpDimens.space12),
     ) {
         Text(
             text = "Settings",
             style = if (tv) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
-            fontWeight = FontWeight.Bold,
+            fontWeight = FontWeight.ExtraBold,
         )
         Text(
             text = "Signed in as ${state.username ?: "?"} (${state.role ?: "?"})",
             color = MaterialTheme.colorScheme.onSurfaceVariant,
+            style = MaterialTheme.typography.bodyMedium,
         )
 
         SettingsSection(title = "General") {
