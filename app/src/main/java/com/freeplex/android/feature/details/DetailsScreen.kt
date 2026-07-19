@@ -56,6 +56,8 @@ import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvFocusable
 import com.freeplex.android.core.model.EpisodeSummary
 import com.freeplex.android.core.model.Person
+import com.freeplex.android.core.offline.CachedEpisodeStatus
+import com.freeplex.android.core.offline.OfflineEpisodeState
 import com.freeplex.android.core.util.absoluteUrl
 import com.freeplex.android.core.util.artworkUrl
 
@@ -109,6 +111,13 @@ fun DetailsScreen(
                     } else {
                         null
                     },
+                    watchedLabel = if (watched) {
+                        "Пометить как непросмотренное"
+                    } else {
+                        "Пометить как просмотренное"
+                    },
+                    onToggleWatched = viewModel::toggleMovieWatched,
+                    watchedBusy = state.markingWatched,
                     trailerUrl = movie.trailerUrl,
                     tv = tv,
                 )
@@ -134,6 +143,8 @@ fun DetailsScreen(
             ?.takeIf { it > 0L }
             ?: 0L
         val canResume = resume > 0L
+        val seriesWatched = DetailsViewModel.isSeriesWatched(series)
+        val seasonWatched = DetailsViewModel.isSeasonWatched(state.episodes)
         // Virtualize episodes — a full season of AsyncImage rows blows TV memory.
         LazyColumn(
             modifier = Modifier
@@ -160,6 +171,13 @@ fun DetailsScreen(
                     onPlay = playTarget?.let { ep ->
                         { onPlay(ep.id, resume, true) }
                     },
+                    watchedLabel = if (seriesWatched) {
+                        "Пометить как непросмотренное"
+                    } else {
+                        "Пометить как просмотренное"
+                    },
+                    onToggleWatched = viewModel::toggleSeriesWatched,
+                    watchedBusy = state.markingWatched,
                     trailerUrl = series.trailerUrl,
                     tv = tv,
                     // Play/Trailer are focusable; only make the whole header a
@@ -176,6 +194,43 @@ fun DetailsScreen(
                     onSelect = viewModel::selectSeason,
                     tv = tv,
                 )
+                if (state.episodes.isNotEmpty()) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        OutlinedButton(
+                            onClick = viewModel::toggleSeasonWatched,
+                            enabled = !state.markingWatched,
+                            modifier = Modifier.tvFocusable(
+                                onClick = viewModel::toggleSeasonWatched,
+                                scaleFocused = 1.05f,
+                            ),
+                        ) {
+                            Text(
+                                if (seasonWatched) {
+                                    "Пометить сезон как непросмотренный"
+                                } else {
+                                    "Пометить сезон как просмотренный"
+                                },
+                                style = MaterialTheme.typography.titleSmall,
+                            )
+                        }
+                        val seasonOffline = seasonOfflineLabel(state.episodes, state.offlineByEpisodeId)
+                        OutlinedButton(
+                            onClick = viewModel::downloadSeason,
+                            enabled = seasonOffline == SeasonOfflineAction.Download,
+                            modifier = Modifier.tvFocusable(
+                                onClick = if (seasonOffline == SeasonOfflineAction.Download) {
+                                    viewModel::downloadSeason
+                                } else {
+                                    null
+                                },
+                                scaleFocused = 1.05f,
+                            ),
+                        ) {
+                            Text(seasonOffline.label, style = MaterialTheme.typography.titleSmall)
+                        }
+                    }
+                }
                 Spacer(modifier = Modifier.height(8.dp))
             }
             val cast = series.people.orEmpty()
@@ -190,7 +245,13 @@ fun DetailsScreen(
                     episode = ep,
                     baseUrl = state.baseUrl,
                     tv = tv,
+                    watchedBusy = state.markingWatched,
+                    offline = state.offlineByEpisodeId[ep.id],
                     onPlay = { onPlay(ep.id, ep.userData.playbackPositionMs ?: 0L, true) },
+                    onToggleWatched = { viewModel.toggleEpisodeWatched(ep.id) },
+                    onDownload = { viewModel.downloadEpisode(ep.id) },
+                    onCancelDownload = { viewModel.cancelOfflineEpisode(ep.id) },
+                    onRemoveDownload = { viewModel.removeOfflineEpisode(ep.id) },
                 )
             }
             item(key = "bottom-spacer") {
@@ -246,7 +307,13 @@ private fun EpisodeRow(
     episode: EpisodeSummary,
     baseUrl: String,
     tv: Boolean,
+    watchedBusy: Boolean,
+    offline: OfflineEpisodeState?,
     onPlay: () -> Unit,
+    onToggleWatched: () -> Unit,
+    onDownload: () -> Unit,
+    onCancelDownload: () -> Unit,
+    onRemoveDownload: () -> Unit,
 ) {
     val thumb = artworkUrl(
         baseUrl = baseUrl,
@@ -299,13 +366,15 @@ private fun EpisodeRow(
                     overflow = TextOverflow.Ellipsis,
                     modifier = Modifier.weight(1f),
                 )
-                if (watched) {
-                    Text(
-                        text = "Watched",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.padding(start = 8.dp),
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OfflineBadge(offline = offline)
+                    if (watched) {
+                        Text(
+                            text = "Просмотрено",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.primary,
+                        )
+                    }
                 }
             }
             episode.overview?.let {
@@ -318,8 +387,79 @@ private fun EpisodeRow(
                     modifier = Modifier.padding(top = 2.dp),
                 )
             }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                modifier = Modifier.padding(top = 4.dp),
+            ) {
+                OutlinedButton(
+                    onClick = onToggleWatched,
+                    enabled = !watchedBusy,
+                    modifier = Modifier.tvFocusable(onClick = onToggleWatched, scaleFocused = 1.05f),
+                ) {
+                    Text(
+                        if (watched) "Пометить как непросмотренное" else "Пометить как просмотренное",
+                        style = MaterialTheme.typography.labelMedium,
+                    )
+                }
+                when (offline?.status) {
+                    CachedEpisodeStatus.Ready -> OutlinedButton(
+                        onClick = onRemoveDownload,
+                        modifier = Modifier.tvFocusable(onClick = onRemoveDownload, scaleFocused = 1.05f),
+                    ) {
+                        Text("Удалить кеш", style = MaterialTheme.typography.labelMedium)
+                    }
+                    CachedEpisodeStatus.Queued, CachedEpisodeStatus.Downloading -> OutlinedButton(
+                        onClick = onCancelDownload,
+                        modifier = Modifier.tvFocusable(onClick = onCancelDownload, scaleFocused = 1.05f),
+                    ) {
+                        Text("Отменить", style = MaterialTheme.typography.labelMedium)
+                    }
+                    CachedEpisodeStatus.Failed, null -> OutlinedButton(
+                        onClick = onDownload,
+                        modifier = Modifier.tvFocusable(onClick = onDownload, scaleFocused = 1.05f),
+                    ) {
+                        Text(
+                            if (offline?.status == CachedEpisodeStatus.Failed) "Повторить" else "Скачать",
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+            }
         }
     }
+}
+
+@Composable
+private fun OfflineBadge(offline: OfflineEpisodeState?) {
+    val label = when (offline?.status) {
+        CachedEpisodeStatus.Ready -> "На устройстве"
+        CachedEpisodeStatus.Downloading -> "↓ ${(offline.progress * 100).toInt()}%"
+        CachedEpisodeStatus.Queued -> "В очереди"
+        CachedEpisodeStatus.Failed -> "Ошибка"
+        null -> return
+    }
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelSmall,
+        color = when (offline.status) {
+            CachedEpisodeStatus.Failed -> MaterialTheme.colorScheme.error
+            else -> MaterialTheme.colorScheme.tertiary
+        },
+    )
+}
+
+private enum class SeasonOfflineAction(val label: String) {
+    Download("Скачать сезон"),
+    None("Сезон скачан"),
+}
+
+private fun seasonOfflineLabel(
+    episodes: List<EpisodeSummary>,
+    offline: Map<String, OfflineEpisodeState>,
+): SeasonOfflineAction {
+    if (episodes.isEmpty()) return SeasonOfflineAction.None
+    val allReady = episodes.all { offline[it.id]?.status == CachedEpisodeStatus.Ready }
+    return if (allReady) SeasonOfflineAction.None else SeasonOfflineAction.Download
 }
 
 @Composable
@@ -337,6 +477,9 @@ private fun DetailScaffold(
     trailerUrl: String? = null,
     playFromStartLabel: String? = null,
     onPlayFromStart: (() -> Unit)? = null,
+    watchedLabel: String? = null,
+    onToggleWatched: (() -> Unit)? = null,
+    watchedBusy: Boolean = false,
     focusableHeader: Boolean = false,
 ) {
     val context = LocalContext.current
@@ -360,6 +503,7 @@ private fun DetailScaffold(
     val posterWidth = if (tv) 120.dp else 112.dp
     val hasActions = (onPlay != null && playLabel != null) ||
         (onPlayFromStart != null && playFromStartLabel != null) ||
+        (onToggleWatched != null && watchedLabel != null) ||
         openTrailer != null
 
     Box(
@@ -489,6 +633,18 @@ private fun DetailScaffold(
                                 ),
                             ) {
                                 Text(playFromStartLabel, style = MaterialTheme.typography.titleSmall)
+                            }
+                        }
+                        if (onToggleWatched != null && watchedLabel != null) {
+                            OutlinedButton(
+                                onClick = onToggleWatched,
+                                enabled = !watchedBusy,
+                                modifier = Modifier.tvFocusable(
+                                    onClick = onToggleWatched,
+                                    scaleFocused = 1.05f,
+                                ),
+                            ) {
+                                Text(watchedLabel, style = MaterialTheme.typography.titleSmall)
                             }
                         }
                         if (openTrailer != null) {

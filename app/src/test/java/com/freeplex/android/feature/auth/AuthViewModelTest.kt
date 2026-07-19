@@ -44,6 +44,7 @@ class AuthViewModelTest {
                 preferredMode = "auto",
                 librarySort = LibrarySort.Added,
                 libraryInProgressFirst = false,
+                maxCacheBytes = 0L,
             ),
         )
         every { sessionStore.readSession() } returns null

@@ -78,6 +78,8 @@ fun FpTextField(
     label: String,
     modifier: Modifier = Modifier,
     isPassword: Boolean = false,
+    keyboardOptions: androidx.compose.foundation.text.KeyboardOptions =
+        androidx.compose.foundation.text.KeyboardOptions.Default,
 ) {
     OutlinedTextField(
         value = value,
@@ -86,6 +88,7 @@ fun FpTextField(
         singleLine = true,
         modifier = modifier.fillMaxWidth(),
         textStyle = MaterialTheme.typography.bodyLarge,
+        keyboardOptions = keyboardOptions,
         visualTransformation = if (isPassword) {
             androidx.compose.ui.text.input.PasswordVisualTransformation()
         } else {

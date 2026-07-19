@@ -1,14 +1,19 @@
 package com.freeplex.android.di
 
+import android.content.Context
+import androidx.room.Room
 import com.freeplex.android.BuildConfig
 import com.freeplex.android.core.network.AuthInterceptor
 import com.freeplex.android.core.network.DynamicBaseUrlInterceptor
 import com.freeplex.android.core.network.FreePlexApi
 import com.freeplex.android.core.network.TokenAuthenticator
+import com.freeplex.android.core.offline.OfflineCacheDao
+import com.freeplex.android.core.offline.OfflineCacheDatabase
 import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
+import dagger.hilt.android.qualifiers.ApplicationContext
 import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -32,6 +37,11 @@ interface ImageLoaderEntryPoint {
 @Qualifier
 @Retention(AnnotationRetention.BINARY)
 annotation class ApplicationScope
+
+/** OkHttp client tuned for long-running media downloads (no short read timeout). */
+@Qualifier
+@Retention(AnnotationRetention.BINARY)
+annotation class DownloadHttpClient
 
 @Module
 @InstallIn(SingletonComponent::class)
@@ -74,6 +84,16 @@ object AppModule {
 
     @Provides
     @Singleton
+    @DownloadHttpClient
+    fun provideDownloadOkHttp(apiClient: OkHttpClient): OkHttpClient =
+        apiClient.newBuilder()
+            .readTimeout(0, TimeUnit.MILLISECONDS)
+            .writeTimeout(0, TimeUnit.MILLISECONDS)
+            .callTimeout(0, TimeUnit.MILLISECONDS)
+            .build()
+
+    @Provides
+    @Singleton
     fun provideRetrofit(client: OkHttpClient, json: Json): Retrofit {
         val contentType = "application/json".toMediaType()
         return Retrofit.Builder()
@@ -86,4 +106,14 @@ object AppModule {
     @Provides
     @Singleton
     fun provideApi(retrofit: Retrofit): FreePlexApi = retrofit.create(FreePlexApi::class.java)
+
+    @Provides
+    @Singleton
+    fun provideOfflineDatabase(@ApplicationContext context: Context): OfflineCacheDatabase =
+        Room.databaseBuilder(context, OfflineCacheDatabase::class.java, "offline_cache.db")
+            .fallbackToDestructiveMigration()
+            .build()
+
+    @Provides
+    fun provideOfflineCacheDao(db: OfflineCacheDatabase): OfflineCacheDao = db.offlineCacheDao()
 }

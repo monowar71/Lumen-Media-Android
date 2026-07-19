@@ -1,6 +1,7 @@
 package com.freeplex.android.feature.player
 
 import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
@@ -16,6 +17,7 @@ import com.freeplex.android.core.model.ProgressRequest
 import com.freeplex.android.core.model.SetQualityRequest
 import com.freeplex.android.core.network.FreePlexRepository
 import com.freeplex.android.core.network.toUserMessage
+import com.freeplex.android.core.offline.OfflineDownloadManager
 import com.freeplex.android.core.preferences.SessionStore
 import com.freeplex.android.core.preferences.SettingsRepository
 import com.freeplex.android.core.util.DeviceProfileFactory
@@ -25,6 +27,7 @@ import com.freeplex.android.core.util.resolvePlaybackSource
 import com.freeplex.android.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import java.io.File
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
@@ -51,6 +54,7 @@ data class PlayerUiState(
     val bufferedMs: Long = 0L,
     val playing: Boolean = false,
     val seeking: Boolean = false,
+    val offline: Boolean = false,
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -61,6 +65,7 @@ class PlayerViewModel @Inject constructor(
     private val repository: FreePlexRepository,
     private val settingsRepository: SettingsRepository,
     private val sessionStore: SessionStore,
+    private val offlineDownloadManager: OfflineDownloadManager,
     @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
@@ -88,6 +93,7 @@ class PlayerViewModel @Inject constructor(
     private var cacheToken: Long = 0
     private var timelineOffsetMs: Long = 0L
     private var seekEpoch: Long = 0
+    private var offlinePlayback: Boolean = false
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -114,7 +120,18 @@ class PlayerViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             val previous = sessionId
-            if (previous != null) repository.stopSession(previous)
+            if (previous != null && previous != OFFLINE_SESSION_ID) {
+                repository.stopSession(previous)
+            }
+            sessionId = null
+            offlinePlayback = false
+
+            val localFile = offlineDownloadManager.readyFile(itemId)
+            if (localFile != null) {
+                playLocalFile(localFile, resumeMs)
+                return@launch
+            }
+
             runCatching {
                 val settings = settingsRepository.settings.first()
                 val kind = NetworkKindDetector.detect(context)
@@ -144,15 +161,73 @@ class PlayerViewModel @Inject constructor(
                         baseUrl = baseUrl,
                         durationMs = decision.durationMs ?: it.durationMs,
                         positionMs = decision.startPositionMs ?: resumeMs,
+                        offline = false,
                     )
                 }
                 startProgressLoop()
                 startPingLoop()
             }.onFailure { err ->
                 _state.update {
-                    it.copy(loading = false, error = err.toUserMessage("Playback failed"))
+                    it.copy(
+                        loading = false,
+                        error = err.toUserMessage("Playback failed"),
+                        offline = false,
+                    )
                 }
             }
+        }
+    }
+
+    private suspend fun playLocalFile(file: File, resumeMs: Long) {
+        val settings = runCatching { settingsRepository.settings.first() }.getOrNull()
+        val decision = PlaybackDecisionResponse(
+            sessionId = OFFLINE_SESSION_ID,
+            method = "DirectPlay",
+            mode = "manual",
+            streamUrl = file.toURI().toString(),
+            container = file.extension,
+            startPositionMs = resumeMs,
+            selectedQualityId = "original",
+            reason = "offline-cache",
+        )
+        offlinePlayback = true
+        sessionId = OFFLINE_SESSION_ID
+        attachLocalFile(file, resumeMs, decision)
+        _state.update {
+            it.copy(
+                loading = false,
+                decision = decision,
+                selectedQualityId = "original",
+                baseUrl = settings?.baseUrl.orEmpty(),
+                positionMs = resumeMs,
+                offline = true,
+                error = null,
+            )
+        }
+        startProgressLoop()
+        pingJob?.cancel()
+    }
+
+    private fun attachLocalFile(
+        file: File,
+        startMs: Long,
+        decision: PlaybackDecisionResponse,
+    ) {
+        val mediaItem = MediaItem.fromUri(Uri.fromFile(file))
+        val mediaSource = DefaultMediaSourceFactory(context).createMediaSource(mediaItem)
+        player.setMediaSource(mediaSource)
+        player.prepare()
+        timelineOffsetMs = 0L
+        if (startMs > 0) player.seekTo(startMs)
+        player.playWhenReady = true
+        _state.update {
+            it.copy(
+                decision = decision,
+                seeking = false,
+                positionMs = startMs.coerceAtLeast(0L),
+                durationMs = decision.durationMs ?: it.durationMs,
+                offline = true,
+            )
         }
     }
 
@@ -196,6 +271,7 @@ class PlayerViewModel @Inject constructor(
                 seeking = false,
                 positionMs = startMs.coerceAtLeast(0L),
                 durationMs = decision.durationMs ?: it.durationMs,
+                offline = false,
             )
         }
     }
@@ -221,7 +297,7 @@ class PlayerViewModel @Inject constructor(
         val target = ms.coerceIn(0L, if (duration > 0) duration else ms.coerceAtLeast(0L))
         _state.update { it.copy(positionMs = target, seeking = true) }
 
-        if (decision.method == "DirectPlay") {
+        if (decision.method == "DirectPlay" || offlinePlayback) {
             timelineOffsetMs = 0L
             player.seekTo(target)
             _state.update { it.copy(seeking = false) }
@@ -245,6 +321,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun remoteSeek(targetMs: Long) {
+        if (offlinePlayback) return
         val sid = sessionId ?: return
         val epoch = ++seekEpoch
         seekJob?.cancel()
@@ -274,6 +351,7 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun changeQuality(qualityId: String) {
+        if (offlinePlayback) return
         val decision = _state.value.decision ?: return
         val position = absolutePosition()
         val mode = if (qualityId == "auto" || decision.availableQualities.any { it.id == qualityId && it.adaptive == true }) {
@@ -304,7 +382,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun absolutePosition(): Long {
         val decision = _state.value.decision
-        return if (decision?.method == "DirectPlay") {
+        return if (decision?.method == "DirectPlay" || offlinePlayback) {
             player.currentPosition.coerceAtLeast(0L)
         } else {
             (timelineOffsetMs + player.currentPosition.coerceAtLeast(0L))
@@ -329,7 +407,7 @@ class PlayerViewModel @Inject constructor(
                 if (!_state.value.seeking) {
                     val duration = effectiveDuration()
                     val position = absolutePosition()
-                    val bufferedAbs = if (_state.value.decision?.method == "DirectPlay") {
+                    val bufferedAbs = if (_state.value.decision?.method == "DirectPlay" || offlinePlayback) {
                         player.bufferedPosition.coerceAtLeast(0L)
                     } else {
                         timelineOffsetMs + player.bufferedPosition.coerceAtLeast(0L)
@@ -375,6 +453,7 @@ class PlayerViewModel @Inject constructor(
 
     private fun startPingLoop() {
         pingJob?.cancel()
+        if (offlinePlayback) return
         pingJob = viewModelScope.launch {
             while (isActive) {
                 delay(30_000)
@@ -384,8 +463,8 @@ class PlayerViewModel @Inject constructor(
     }
 
     private suspend fun reportProgress(stateName: String) {
-        val sid = sessionId ?: return
         val duration = effectiveDuration()
+        val sid = sessionId?.takeUnless { it == OFFLINE_SESSION_ID }
         runCatching {
             repository.putProgress(
                 itemId,
@@ -415,30 +494,32 @@ class PlayerViewModel @Inject constructor(
         player.removeListener(playerListener)
         // Capture playback state before release: the player cannot be queried
         // afterwards, and the final report runs asynchronously.
-        val sid = sessionId
+        val sid = sessionId?.takeUnless { it == OFFLINE_SESSION_ID }
         val position = absolutePosition()
         val duration = effectiveDuration()
         player.release()
-        if (sid != null) {
-            // viewModelScope is already cancelled inside onCleared, so the final
-            // progress report and session stop must run on a scope that survives.
-            appScope.launch {
-                withContext(NonCancellable) {
-                    runCatching {
-                        repository.putProgress(
-                            itemId,
-                            ProgressRequest(
-                                positionMs = position,
-                                durationMs = duration.coerceAtLeast(0),
-                                sessionId = sid,
-                                state = "stopped",
-                            ),
-                        )
-                    }
+        appScope.launch {
+            withContext(NonCancellable) {
+                runCatching {
+                    repository.putProgress(
+                        itemId,
+                        ProgressRequest(
+                            positionMs = position,
+                            durationMs = duration.coerceAtLeast(0),
+                            sessionId = sid,
+                            state = "stopped",
+                        ),
+                    )
+                }
+                if (sid != null) {
                     repository.stopSession(sid)
                 }
             }
         }
         super.onCleared()
+    }
+
+    companion object {
+        private const val OFFLINE_SESSION_ID = "offline"
     }
 }

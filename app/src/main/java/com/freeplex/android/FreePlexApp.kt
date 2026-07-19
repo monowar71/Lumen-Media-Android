@@ -3,6 +3,7 @@ package com.freeplex.android
 import android.app.Application
 import coil.ImageLoader
 import coil.ImageLoaderFactory
+import com.freeplex.android.core.offline.OfflineDownloadManager
 import com.freeplex.android.core.preferences.SessionStore
 import com.freeplex.android.di.ApplicationScope
 import com.freeplex.android.di.ImageLoaderEntryPoint
@@ -16,11 +17,16 @@ import kotlinx.coroutines.launch
 class FreePlexApp : Application(), ImageLoaderFactory {
     @Inject lateinit var sessionStore: SessionStore
 
+    /** Eagerly created so interrupted downloads resume after process start. */
+    @Inject lateinit var offlineDownloadManager: OfflineDownloadManager
+
     @Inject @ApplicationScope
     lateinit var appScope: CoroutineScope
 
     override fun onCreate() {
         super.onCreate()
+        // Touch singleton so the download worker starts even before Settings/Details.
+        offlineDownloadManager.summary
         // EncryptedSharedPreferences creation is slow (MasterKey); pay the cost
         // off the main thread before the first request needs a token.
         appScope.launch { sessionStore.warmUp() }
