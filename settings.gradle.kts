@@ -14,5 +14,5 @@ dependencyResolutionManagement {
     }
 }
 
-rootProject.name = "FreePlex"
+rootProject.name = "LumenMedia"
 include(":app")
