@@ -46,6 +46,7 @@ class LibraryViewModelTest {
                 preferredMode = "auto",
                 librarySort = LibrarySort.Added,
                 libraryInProgressFirst = false,
+                maxCacheBytes = 0L,
             ),
         )
         coJustRun { setLibrarySort(any()) }

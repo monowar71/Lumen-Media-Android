@@ -7,14 +7,19 @@ import com.freeplex.android.core.model.JobDto
 import com.freeplex.android.core.model.LibraryDto
 import com.freeplex.android.core.network.FreePlexRepository
 import com.freeplex.android.core.network.toUserMessage
+import com.freeplex.android.core.offline.OfflineCacheSummary
+import com.freeplex.android.core.offline.OfflineDownloadManager
+import com.freeplex.android.core.offline.OfflineEpisodeState
 import com.freeplex.android.core.preferences.SessionStore
 import com.freeplex.android.core.preferences.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
-import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
@@ -23,6 +28,7 @@ data class SettingsUiState(
     val lanCapKbps: Int = 0,
     val externalCapKbps: Int = 8000,
     val preferredMode: String = "auto",
+    val maxCacheBytes: Long = SettingsRepository.DEFAULT_MAX_CACHE_BYTES,
     val username: String? = null,
     val role: String? = null,
     val libraries: List<LibraryDto> = emptyList(),
@@ -30,6 +36,7 @@ data class SettingsUiState(
     val newLibraryName: String = "",
     val newLibraryType: String = "Movies",
     val newLibraryPath: String = "",
+    val cacheSummary: OfflineCacheSummary = OfflineCacheSummary(),
     val message: String? = null,
     val error: String? = null,
 )
@@ -40,9 +47,18 @@ class SettingsViewModel @Inject constructor(
     private val repository: FreePlexRepository,
     private val sessionStore: SessionStore,
     private val libraryCatalog: com.freeplex.android.core.library.LibraryCatalog,
+    private val offlineDownloadManager: OfflineDownloadManager,
 ) : ViewModel() {
     private val _state = MutableStateFlow(SettingsUiState())
-    val state: StateFlow<SettingsUiState> = _state.asStateFlow()
+
+    val state: StateFlow<SettingsUiState> = combine(
+        _state,
+        offlineDownloadManager.summary,
+    ) { ui, cache ->
+        ui.copy(cacheSummary = cache)
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, SettingsUiState())
+
+    val cacheEntries: StateFlow<List<OfflineEpisodeState>> = offlineDownloadManager.entries
 
     init {
         viewModelScope.launch {
@@ -54,6 +70,7 @@ class SettingsViewModel @Inject constructor(
                     lanCapKbps = settings.lanCapKbps,
                     externalCapKbps = settings.externalCapKbps,
                     preferredMode = settings.preferredMode,
+                    maxCacheBytes = settings.maxCacheBytes,
                     username = session?.username,
                     role = session?.role,
                 )
@@ -63,9 +80,10 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun onBaseUrl(v: String) = _state.update { it.copy(baseUrl = v) }
-    fun onLanCap(v: String) = _state.update { it.copy(lanCapKbps = v.toIntOrNull() ?: 0) }
-    fun onExternalCap(v: String) = _state.update { it.copy(externalCapKbps = v.toIntOrNull() ?: 0) }
+    fun onLanCap(v: Int) = _state.update { it.copy(lanCapKbps = v.coerceAtLeast(0)) }
+    fun onExternalCap(v: Int) = _state.update { it.copy(externalCapKbps = v.coerceAtLeast(0)) }
     fun onMode(v: String) = _state.update { it.copy(preferredMode = v) }
+    fun onMaxCacheBytes(v: Long) = _state.update { it.copy(maxCacheBytes = v.coerceAtLeast(0L)) }
     fun onNewLibraryName(v: String) = _state.update { it.copy(newLibraryName = v) }
     fun onNewLibraryType(v: String) = _state.update { it.copy(newLibraryType = v) }
     fun onNewLibraryPath(v: String) = _state.update { it.copy(newLibraryPath = v) }
@@ -77,7 +95,48 @@ class SettingsViewModel @Inject constructor(
             settingsRepository.setLanCap(s.lanCapKbps)
             settingsRepository.setExternalCap(s.externalCapKbps)
             settingsRepository.setPreferredMode(s.preferredMode)
-            _state.update { it.copy(message = "Settings saved") }
+            settingsRepository.setMaxCacheBytes(s.maxCacheBytes)
+            _state.update { it.copy(message = "Settings saved", error = null) }
+        }
+    }
+
+    fun saveBaseUrl(url: String) {
+        onBaseUrl(url)
+        viewModelScope.launch {
+            settingsRepository.setBaseUrl(url)
+            _state.update { it.copy(message = "Server URL saved", error = null) }
+        }
+    }
+
+    fun saveLanCap(kbps: Int) {
+        onLanCap(kbps)
+        viewModelScope.launch {
+            settingsRepository.setLanCap(kbps)
+            _state.update { it.copy(message = "LAN cap saved", error = null) }
+        }
+    }
+
+    fun saveExternalCap(kbps: Int) {
+        onExternalCap(kbps)
+        viewModelScope.launch {
+            settingsRepository.setExternalCap(kbps)
+            _state.update { it.copy(message = "External cap saved", error = null) }
+        }
+    }
+
+    fun saveMode(mode: String) {
+        onMode(mode)
+        viewModelScope.launch {
+            settingsRepository.setPreferredMode(mode)
+            _state.update { it.copy(message = "Playback mode saved", error = null) }
+        }
+    }
+
+    fun saveMaxCacheBytes(bytes: Long) {
+        onMaxCacheBytes(bytes)
+        viewModelScope.launch {
+            settingsRepository.setMaxCacheBytes(bytes)
+            _state.update { it.copy(message = "Cache limit saved", error = null) }
         }
     }
 
@@ -138,6 +197,27 @@ class SettingsViewModel @Inject constructor(
                     refreshAdmin()
                 }
                 .onFailure { err -> _state.update { it.copy(error = err.toUserMessage()) } }
+        }
+    }
+
+    fun removeCachedEpisode(episodeId: String) {
+        viewModelScope.launch {
+            offlineDownloadManager.remove(episodeId)
+            _state.update { it.copy(message = "Removed from cache") }
+        }
+    }
+
+    fun clearCache() {
+        viewModelScope.launch {
+            offlineDownloadManager.clearAll()
+            _state.update { it.copy(message = "Offline cache cleared") }
+        }
+    }
+
+    fun removeFailedDownloads() {
+        viewModelScope.launch {
+            offlineDownloadManager.removeFailed()
+            _state.update { it.copy(message = "Failed downloads cleared") }
         }
     }
 

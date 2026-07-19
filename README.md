@@ -8,6 +8,7 @@ Kotlin + Jetpack Compose client for phones/tablets (Android TV leanback entry in
 - Retrofit + Kotlinx Serialization (API aligned with `server/openapi.json`)
 - Media3 ExoPlayer (Direct Play + HLS)
 - DataStore settings, EncryptedSharedPreferences tokens
+- Room offline episode cache (`GET /items/{id}/download`)
 
 ## Build
 
@@ -29,7 +30,7 @@ in `app/build.gradle.kts` (do not commit keystore files or passwords).
 
 ## Screens (web parity for current phase)
 
-Login/setup, Home, Library grid, Item details (movie/series), Search, Settings (caps + admin libraries), Player (quality selector, progress, session ping/stop).
+Login/setup, Home, Library grid, Item details (movie/series + episode/season download), Search, Settings (TV-safe rows, caps, offline cache, admin libraries), Player (quality selector, offline Direct Play, progress, session ping/stop).
 
 ## Tests
 

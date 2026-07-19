@@ -28,10 +28,11 @@ client_android/
 └── tv/                      # TV-специфичные экраны/навигация (Compose for TV)
 ```
 
-- Паттерн: **MVVM/MVI**. `Composable` ↔ `ViewModel` (экспонирует `StateFlow<UiState>`) ↔ Repository (SDK + кэш Room, опционально).
+- Паттерн: **MVVM/MVI**. `Composable` ↔ `ViewModel` (экспонирует `StateFlow<UiState>`) ↔ Repository (SDK + кэш Room для офлайн-эпизодов).
 - Односторонний поток данных: события → редьюсер/ViewModel → новое `UiState`.
 - Зависимости через интерфейсы + Hilt (тестируемость).
 - Токены — `EncryptedSharedPreferences`; адрес сервера — DataStore.
+- **Офлайн-кеш сериалов:** `OfflineDownloadManager` качает оригинал через `GET /api/v1/items/{id}/download` в `filesDir/offline_media/`; метаданные в Room. Скачивание — по эпизоду или сезону на экране деталей. Плеер сначала проверяет локальный файл и играет Direct Play без `playback/decision`. Настройки: лимит размера, список, очистка. На ТВ пункты настроек — focusable-строки; TextField только в диалоге по OK (без IME при D-pad навигации).
 
 ## Плеер
 

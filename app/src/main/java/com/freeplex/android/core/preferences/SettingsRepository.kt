@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.freeplex.android.BuildConfig
@@ -44,6 +45,8 @@ data class AppSettings(
     val preferredMode: String,
     val librarySort: LibrarySort,
     val libraryInProgressFirst: Boolean,
+    /** Max local episode cache size in bytes; 0 = unlimited. Default 50 GiB. */
+    val maxCacheBytes: Long,
 )
 
 @Singleton
@@ -57,6 +60,7 @@ class SettingsRepository @Inject constructor(
     private val modeKey = stringPreferencesKey("preferred_mode")
     private val librarySortKey = stringPreferencesKey("library_sort")
     private val libraryInProgressFirstKey = booleanPreferencesKey("library_in_progress_first")
+    private val maxCacheBytesKey = longPreferencesKey("max_cache_bytes")
 
     private val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
         AppSettings(
@@ -70,6 +74,7 @@ class SettingsRepository @Inject constructor(
                 ?.let { stored -> LibrarySort.entries.find { it.name == stored } }
                 ?: LibrarySort.Added,
             libraryInProgressFirst = prefs[libraryInProgressFirstKey] ?: false,
+            maxCacheBytes = prefs[maxCacheBytesKey] ?: DEFAULT_MAX_CACHE_BYTES,
         )
     }
 
@@ -111,10 +116,18 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { it[libraryInProgressFirstKey] = enabled }
     }
 
+    suspend fun setMaxCacheBytes(bytes: Long) {
+        context.dataStore.edit { it[maxCacheBytesKey] = bytes.coerceAtLeast(0L) }
+    }
+
     fun capFor(settings: AppSettings, kind: ConnectionKind): Int {
         return when (kind) {
             ConnectionKind.External -> if (settings.externalCapKbps > 0) settings.externalCapKbps else 100_000
             ConnectionKind.Lan -> if (settings.lanCapKbps > 0) settings.lanCapKbps else 100_000
         }
+    }
+
+    companion object {
+        const val DEFAULT_MAX_CACHE_BYTES: Long = 50L * 1024L * 1024L * 1024L
     }
 }

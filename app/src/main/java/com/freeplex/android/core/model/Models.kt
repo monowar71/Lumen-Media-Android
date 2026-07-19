@@ -343,10 +343,12 @@ data class SetQualityRequest(
 
 @Serializable
 data class ProgressRequest(
-    val positionMs: Long,
-    val durationMs: Long,
+    val positionMs: Long = 0,
+    val durationMs: Long? = null,
     val sessionId: String? = null,
-    val state: String,
+    val state: String? = null,
+    /** When set, explicitly marks watched/unwatched (cascades for series/season). */
+    val watched: Boolean? = null,
 )
 
 @Serializable
