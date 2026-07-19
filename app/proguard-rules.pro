@@ -2,7 +2,7 @@
 -keepattributes *Annotation*, InnerClasses
 -dontwarn okhttp3.**
 -dontwarn retrofit2.**
--keep class com.freeplex.android.core.model.** { *; }
+-keep class com.lumenmedia.android.core.model.** { *; }
 
 # kotlinx.serialization: keep generated serializers and their lookup entry
 # points for API models so R8 does not strip reflective serializer resolution.
@@ -12,10 +12,10 @@
 -keepclasseswithmembers class kotlinx.serialization.json.** {
     kotlinx.serialization.KSerializer serializer(...);
 }
--keep,includedescriptorclasses class com.freeplex.android.core.model.**$$serializer { *; }
--keepclassmembers class com.freeplex.android.core.model.** {
+-keep,includedescriptorclasses class com.lumenmedia.android.core.model.**$$serializer { *; }
+-keepclassmembers class com.lumenmedia.android.core.model.** {
     *** Companion;
 }
--keepclasseswithmembers class com.freeplex.android.core.model.** {
+-keepclasseswithmembers class com.lumenmedia.android.core.model.** {
     kotlinx.serialization.KSerializer serializer(...);
 }

@@ -1,6 +1,6 @@
 # AGENTS.md — client_android (Android / Android TV)
 
-Нативный клиент FreePlex на Kotlin + Jetpack Compose, единое приложение для телефонов/планшетов и Android TV. Сначала прочитай корневой [../AGENTS.md](../AGENTS.md) и [../docs/clients.md](../docs/clients.md).
+Нативный клиент LumenMedia на Kotlin + Jetpack Compose, единое приложение для телефонов/планшетов и Android TV. Сначала прочитай корневой [../AGENTS.md](../AGENTS.md) и [../docs/clients.md](../docs/clients.md).
 
 ## Стек
 

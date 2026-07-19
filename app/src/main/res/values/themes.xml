@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.FreePlex" parent="android:Theme.Material.NoActionBar">
+    <style name="Theme.LumenMedia" parent="android:Theme.Material.NoActionBar">
         <item name="android:statusBarColor">@color/fp_bg</item>
         <item name="android:navigationBarColor">@color/fp_bg</item>
         <item name="android:windowBackground">@color/fp_bg</item>

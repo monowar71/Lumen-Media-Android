@@ -1,4 +1,4 @@
-# FreePlex Android
+# LumenMedia Android
 
 Kotlin + Jetpack Compose client for phones/tablets (Android TV leanback entry included).
 

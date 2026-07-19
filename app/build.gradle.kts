@@ -8,11 +8,11 @@ plugins {
 }
 
 android {
-    namespace = "com.freeplex.android"
+    namespace = "com.lumenmedia.android"
     compileSdk = 35
 
     defaultConfig {
-        applicationId = "com.freeplex.android"
+        applicationId = "com.lumenmedia.android"
         minSdk = 26
         targetSdk = 35
         versionCode = 1

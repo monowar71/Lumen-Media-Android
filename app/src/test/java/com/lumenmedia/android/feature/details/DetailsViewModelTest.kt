@@ -1,0 +1,135 @@
+package com.lumenmedia.android.feature.details
+
+import androidx.lifecycle.SavedStateHandle
+import com.lumenmedia.android.core.model.EpisodeSummary
+import com.lumenmedia.android.core.model.MovieDetail
+import com.lumenmedia.android.core.model.ProgressRequest
+import com.lumenmedia.android.core.model.ProgressResponse
+import com.lumenmedia.android.core.model.SeriesDetail
+import com.lumenmedia.android.core.model.UserData
+import com.lumenmedia.android.core.network.LumenMediaRepository
+import com.lumenmedia.android.core.network.ItemDetailResult
+import com.lumenmedia.android.core.preferences.AppSettings
+import com.lumenmedia.android.core.preferences.LibrarySort
+import com.lumenmedia.android.core.preferences.SettingsRepository
+import com.google.common.truth.Truth.assertThat
+import io.mockk.coEvery
+import io.mockk.coVerify
+import io.mockk.every
+import io.mockk.mockk
+import io.mockk.slot
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.flow.flowOf
+import kotlinx.coroutines.test.StandardTestDispatcher
+import kotlinx.coroutines.test.advanceUntilIdle
+import kotlinx.coroutines.test.resetMain
+import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.test.setMain
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+
+@OptIn(ExperimentalCoroutinesApi::class)
+class DetailsViewModelTest {
+    private val dispatcher = StandardTestDispatcher()
+    private val repository = mockk<LumenMediaRepository>()
+    private val settingsRepository = mockk<SettingsRepository> {
+        every { settings } returns flowOf(
+            AppSettings(
+                baseUrl = "http://server",
+                lanCapKbps = 0,
+                externalCapKbps = 0,
+                preferredMode = "auto",
+                librarySort = LibrarySort.Added,
+                libraryInProgressFirst = false,
+                maxCacheBytes = 0L,
+            ),
+        )
+    }
+    private val offlineDownloadManager = mockk<com.lumenmedia.android.core.offline.OfflineDownloadManager>(relaxed = true) {
+        every { entries } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
+    }
+
+    @Before
+    fun setUp() {
+        Dispatchers.setMain(dispatcher)
+    }
+
+    @After
+    fun tearDown() {
+        Dispatchers.resetMain()
+    }
+
+    @Test
+    fun toggleMovieWatched_marks_via_progress_api() = runTest {
+        val movie = MovieDetail(
+            id = "m1",
+            kind = "Movie",
+            title = "Matrix",
+            userData = UserData(watched = false, playbackPositionMs = 1_000),
+        )
+        coEvery { repository.itemDetail("m1") } returns ItemDetailResult.Movie(movie)
+        coEvery { repository.putProgress(any(), any()) } returns ProgressResponse(
+            itemId = "m1",
+            watched = true,
+        )
+
+        val vm = DetailsViewModel(
+            SavedStateHandle(mapOf("itemId" to "m1")),
+            repository,
+            settingsRepository,
+            offlineDownloadManager,
+        )
+        advanceUntilIdle()
+
+        vm.toggleMovieWatched()
+        advanceUntilIdle()
+
+        val body = slot<ProgressRequest>()
+        coVerify { repository.putProgress("m1", capture(body)) }
+        assertThat(body.captured.watched).isTrue()
+        assertThat(vm.state.value.movie?.userData?.watched).isTrue()
+    }
+
+    @Test
+    fun isSeriesWatched_requires_zero_unwatched() {
+        val watched = SeriesDetail(
+            id = "s1",
+            kind = "Series",
+            title = "Show",
+            seasonCount = 1,
+            episodeCount = 3,
+            userData = UserData(unwatchedEpisodeCount = 0),
+        )
+        val unwatched = watched.copy(userData = UserData(unwatchedEpisodeCount = 2))
+        assertThat(DetailsViewModel.isSeriesWatched(watched)).isTrue()
+        assertThat(DetailsViewModel.isSeriesWatched(unwatched)).isFalse()
+    }
+
+    @Test
+    fun isSeasonWatched_requires_all_episodes() {
+        val episodes = listOf(
+            EpisodeSummary(
+                id = "e1",
+                title = "One",
+                seasonNumber = 1,
+                episodeNumber = 1,
+                userData = UserData(watched = true),
+            ),
+            EpisodeSummary(
+                id = "e2",
+                title = "Two",
+                seasonNumber = 1,
+                episodeNumber = 2,
+                userData = UserData(watched = false),
+            ),
+        )
+        assertThat(DetailsViewModel.isSeasonWatched(episodes)).isFalse()
+        assertThat(
+            DetailsViewModel.isSeasonWatched(
+                episodes.map { it.copy(userData = UserData(watched = true)) },
+            ),
+        ).isTrue()
+    }
+}
