@@ -23,30 +23,70 @@ data class SavedCredentials(
 
 @Singleton
 class SessionStore @Inject constructor(
-    @ApplicationContext context: Context,
+    @ApplicationContext private val context: Context,
 ) {
-    private val prefs: SharedPreferences = try {
-        val masterKey = MasterKey.Builder(context)
-            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
-            .build()
-        EncryptedSharedPreferences.create(
-            context,
-            "freeplex_secure_session",
-            masterKey,
-            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
-            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
-        )
-    } catch (_: Exception) {
-        context.getSharedPreferences("freeplex_session_fallback", Context.MODE_PRIVATE)
+    // MasterKey creation and opening EncryptedSharedPreferences are slow, and
+    // the first injection happens on the main thread during startup. Defer the
+    // work (lazy is synchronized) and warm it from a background thread via
+    // warmUp() in FreePlexApp.
+    private val prefs: SharedPreferences by lazy {
+        try {
+            val masterKey = MasterKey.Builder(context)
+                .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+                .build()
+            EncryptedSharedPreferences.create(
+                context,
+                "freeplex_secure_session",
+                masterKey,
+                EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+                EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM,
+            )
+        } catch (_: Exception) {
+            context.getSharedPreferences("freeplex_session_fallback", Context.MODE_PRIVATE)
+        }
     }
 
     @Volatile
-    var accessToken: String? = prefs.getString(KEY_ACCESS, null)
-        private set
+    private var cachedAccessToken: String? = null
 
     @Volatile
-    var refreshToken: String? = prefs.getString(KEY_REFRESH, null)
-        private set
+    private var cachedRefreshToken: String? = null
+
+    @Volatile
+    private var tokensLoaded = false
+
+    val accessToken: String?
+        get() {
+            ensureTokensLoaded()
+            return cachedAccessToken
+        }
+
+    val refreshToken: String?
+        get() {
+            ensureTokensLoaded()
+            return cachedRefreshToken
+        }
+
+    /** Opens the encrypted prefs and populates the token cache; call off the main thread. */
+    fun warmUp() = ensureTokensLoaded()
+
+    private fun ensureTokensLoaded() {
+        if (tokensLoaded) return
+        synchronized(this) {
+            if (tokensLoaded) return
+            cachedAccessToken = prefs.getString(KEY_ACCESS, null)
+            cachedRefreshToken = prefs.getString(KEY_REFRESH, null)
+            tokensLoaded = true
+        }
+    }
+
+    private fun setCachedTokens(access: String?, refresh: String?) {
+        synchronized(this) {
+            cachedAccessToken = access
+            cachedRefreshToken = refresh
+            tokensLoaded = true
+        }
+    }
 
     fun readSession(): AuthSession? {
         val access = prefs.getString(KEY_ACCESS, null) ?: return null
@@ -54,14 +94,12 @@ class SessionStore @Inject constructor(
         val userId = prefs.getString(KEY_USER_ID, null) ?: return null
         val username = prefs.getString(KEY_USERNAME, null) ?: return null
         val role = prefs.getString(KEY_ROLE, "User") ?: "User"
-        accessToken = access
-        refreshToken = refresh
+        setCachedTokens(access, refresh)
         return AuthSession(access, refresh, userId, username, role)
     }
 
     fun saveSession(session: AuthSession) {
-        accessToken = session.accessToken
-        refreshToken = session.refreshToken
+        setCachedTokens(session.accessToken, session.refreshToken)
         prefs.edit()
             .putString(KEY_ACCESS, session.accessToken)
             .putString(KEY_REFRESH, session.refreshToken)
@@ -72,8 +110,7 @@ class SessionStore @Inject constructor(
     }
 
     fun updateTokens(access: String, refresh: String) {
-        accessToken = access
-        refreshToken = refresh
+        setCachedTokens(access, refresh)
         prefs.edit()
             .putString(KEY_ACCESS, access)
             .putString(KEY_REFRESH, refresh)
@@ -108,8 +145,7 @@ class SessionStore @Inject constructor(
 
     /** Clears JWT session only — remembered login/password are kept. */
     fun clear() {
-        accessToken = null
-        refreshToken = null
+        setCachedTokens(null, null)
         prefs.edit()
             .remove(KEY_ACCESS)
             .remove(KEY_REFRESH)

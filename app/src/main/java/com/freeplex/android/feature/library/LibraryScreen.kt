@@ -3,23 +3,33 @@ package com.freeplex.android.feature.library
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.GridItemSpan
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.grid.rememberLazyGridState
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.snapshotFlow
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
@@ -33,7 +43,11 @@ import com.freeplex.android.core.designsystem.TvContentPadding
 import com.freeplex.android.core.designsystem.TvDimens
 import com.freeplex.android.core.designsystem.isTvDevice
 import com.freeplex.android.core.designsystem.tvFocusable
+import com.freeplex.android.core.preferences.LibrarySort
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.filter
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun LibraryScreen(
     onOpenItem: (String) -> Unit,
@@ -103,17 +117,52 @@ fun LibraryScreen(
         if (!tv) {
             FpTextField(
                 value = state.query,
-                onValueChange = {
-                    viewModel.onQueryChange(it)
-                    viewModel.refresh()
-                },
+                // Reload is debounced inside the ViewModel.
+                onValueChange = viewModel::onQueryChange,
                 label = "Filter",
+            )
+        }
+        // Sort controls: mirror the web client's library toolbar.
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .horizontalScroll(rememberScrollState())
+                .padding(top = if (tv) 0.dp else 10.dp, bottom = if (tv) 8.dp else 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+        ) {
+            SortChip(
+                label = "By name",
+                selected = state.sort == LibrarySort.Name,
+                onClick = { viewModel.onSortChange(LibrarySort.Name) },
+            )
+            SortChip(
+                label = "Recently added",
+                selected = state.sort == LibrarySort.Added,
+                onClick = { viewModel.onSortChange(LibrarySort.Added) },
+            )
+            SortChip(
+                label = "In progress first",
+                selected = state.inProgressFirst,
+                onClick = { viewModel.onInProgressFirstChange(!state.inProgressFirst) },
             )
         }
         if (state.items.isEmpty()) {
             EmptyState(title = "Nothing here", body = "Try another library or scan media files.")
         } else {
+            val gridState = rememberLazyGridState()
+            // Fetch the next page when scrolling (touch or D-pad) approaches the end.
+            LaunchedEffect(gridState) {
+                snapshotFlow {
+                    val info = gridState.layoutInfo
+                    val lastVisible = info.visibleItemsInfo.lastOrNull()?.index ?: -1
+                    lastVisible >= info.totalItemsCount - 10
+                }
+                    .distinctUntilChanged()
+                    .filter { it }
+                    .collect { viewModel.loadMore() }
+            }
             LazyVerticalGrid(
+                state = gridState,
                 columns = GridCells.Adaptive(minSize = minCell),
                 contentPadding = PaddingValues(
                     top = if (tv) TvDimens.focusHalo else 4.dp,
@@ -124,17 +173,69 @@ fun LibraryScreen(
                 ),
                 horizontalArrangement = Arrangement.spacedBy(if (tv) TvDimens.posterGap else 12.dp),
                 verticalArrangement = Arrangement.spacedBy(if (tv) 12.dp else 14.dp),
-                modifier = Modifier.fillMaxSize(),
+                // Restore D-pad focus to the last focused card when the user
+                // comes back from details instead of resetting to the sidebar.
+                modifier = Modifier
+                    .fillMaxSize()
+                    .focusRestorer(),
             ) {
                 items(items = state.items, key = { it.id }) { item ->
                     PosterCard(
                         item = item,
                         baseUrl = state.baseUrl,
-                        accessToken = state.accessToken,
                         onClick = { onOpenItem(item.id) },
+                        // Adaptive cells are usually wider than the minimum;
+                        // stretch the card so the grid does not look ragged.
+                        fixedWidth = false,
+                        modifier = Modifier.fillMaxWidth(),
                     )
+                }
+                if (state.loadingMore) {
+                    item(key = "loading-more", span = { GridItemSpan(maxLineSpan) }) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 16.dp),
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(28.dp),
+                                color = MaterialTheme.colorScheme.primary,
+                            )
+                        }
+                    }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun SortChip(
+    label: String,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Text(
+        text = label,
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.SemiBold,
+        color = if (selected) {
+            MaterialTheme.colorScheme.onPrimary
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        modifier = Modifier
+            .tvFocusable(
+                onClick = onClick,
+                scaleFocused = 1.06f,
+                shape = RoundedCornerShape(20.dp),
+            )
+            .clip(RoundedCornerShape(20.dp))
+            .background(
+                if (selected) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surfaceVariant,
+            )
+            .padding(horizontal = 14.dp, vertical = 7.dp),
+    )
 }

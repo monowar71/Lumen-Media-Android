@@ -76,6 +76,7 @@ interface FreePlexApi {
         @Query("pageSize") pageSize: Int = 50,
         @Query("sort") sort: String? = "added",
         @Query("order") order: String? = "desc",
+        @Query("watched") watched: Boolean? = null,
         @Query("q") q: String? = null,
     ): PagedResult<MediaItemSummary>
 

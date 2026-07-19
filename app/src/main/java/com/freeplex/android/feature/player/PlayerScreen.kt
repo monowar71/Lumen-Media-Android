@@ -19,18 +19,22 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Forward10
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material.icons.filled.Replay10
+import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -39,8 +43,8 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Slider
 import androidx.compose.material3.SliderDefaults
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableFloatStateOf
@@ -70,6 +74,9 @@ import androidx.compose.ui.unit.DpSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.hilt.navigation.compose.hiltViewModel
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
@@ -80,6 +87,7 @@ import com.freeplex.android.core.designsystem.tvFocusable
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
 @Composable
 fun PlayerScreen(
@@ -98,6 +106,8 @@ fun PlayerScreen(
     val skipBackFocus = remember { FocusRequester() }
     val skipFwdFocus = remember { FocusRequester() }
     val rootFocus = remember { FocusRequester() }
+    val qualityButtonFocus = remember { FocusRequester() }
+    val qualitySelectedFocus = remember { FocusRequester() }
 
     val displayMs = if (scrubbing) scrubMs.toLong() else state.positionMs
     val duration = state.durationMs.coerceAtLeast(1L)
@@ -113,13 +123,54 @@ fun PlayerScreen(
         controlsVisible = true
     }
 
-    BackHandler(onBack = onBack)
+    // TV: Back closes the quality menu, then hides the controls, then exits.
+    // Phone: Back closes the quality menu, then exits.
+    BackHandler {
+        when {
+            showQuality -> showQuality = false
+            tv && controlsVisible -> controlsVisible = false
+            else -> onBack()
+        }
+    }
 
-    LaunchedEffect(controlsVisible, state.playing, scrubbing, seekFocused) {
-        if (controlsVisible && state.playing && !scrubbing && !seekFocused) {
+    // Pause when the app goes to background (Home/app switch): otherwise audio
+    // keeps playing and the server transcode session keeps running. No
+    // auto-resume on return — the user resumes manually.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_STOP) viewModel.onBackground()
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+
+    // Ticker only needs smooth (250ms) position updates while the chrome with
+    // the seek bar is actually on screen.
+    LaunchedEffect(controlsVisible, scrubbing, seekFocused) {
+        viewModel.setUiVisible(controlsVisible || scrubbing || seekFocused)
+        if (!controlsVisible) showQuality = false
+    }
+
+    LaunchedEffect(controlsVisible, state.playing, scrubbing, seekFocused, showQuality) {
+        if (controlsVisible && state.playing && !scrubbing && !seekFocused && !showQuality) {
             delay(4_000)
             controlsVisible = false
-            showQuality = false
+        }
+    }
+
+    // Move focus into the dropdown when it opens; back to the button when it
+    // closes. Skip the very first composition so the play button keeps its
+    // initial focus.
+    var qualityMenuSeen by remember { mutableStateOf(false) }
+    LaunchedEffect(showQuality) {
+        if (!tv) return@LaunchedEffect
+        if (showQuality) qualityMenuSeen = true
+        if (!showQuality && !qualityMenuSeen) return@LaunchedEffect
+        delay(80)
+        runCatching {
+            if (showQuality) qualitySelectedFocus.requestFocus()
+            else qualityButtonFocus.requestFocus()
         }
     }
 
@@ -274,57 +325,6 @@ fun PlayerScreen(
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
-                            Text(
-                                text = state.selectedQualityId,
-                                color = Color.White.copy(alpha = 0.65f),
-                                style = MaterialTheme.typography.bodySmall,
-                            )
-                        }
-                        TextButton(
-                            onClick = {
-                                showQuality = !showQuality
-                                revealControls()
-                            },
-                            modifier = Modifier.tvFocusable(
-                                onClick = {
-                                    showQuality = !showQuality
-                                    revealControls()
-                                },
-                                scaleFocused = 1.06f,
-                            ),
-                        ) {
-                            Text("Quality", color = Color.White, style = MaterialTheme.typography.labelLarge)
-                        }
-                    }
-                    if (showQuality) {
-                        val qualities = state.decision?.availableQualities.orEmpty()
-                        LazyRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.padding(top = 8.dp),
-                        ) {
-                            items(qualities, key = { it.id }) { q ->
-                                val selected = q.id == state.selectedQualityId
-                                Text(
-                                    text = q.label,
-                                    color = if (selected) Color.Black else Color.White,
-                                    style = MaterialTheme.typography.labelLarge,
-                                    modifier = Modifier
-                                        .tvFocusable(
-                                            onClick = {
-                                                viewModel.changeQuality(q.id)
-                                                showQuality = false
-                                                revealControls()
-                                            },
-                                            shape = RoundedCornerShape(20.dp),
-                                        )
-                                        .clip(RoundedCornerShape(20.dp))
-                                        .background(
-                                            if (selected) MaterialTheme.colorScheme.primary
-                                            else Color.White.copy(alpha = 0.15f),
-                                        )
-                                        .padding(horizontal = 14.dp, vertical = 8.dp),
-                                )
-                            }
                         }
                     }
                 }
@@ -427,6 +427,22 @@ fun PlayerScreen(
                             bottom = if (tv) 24.dp else 20.dp,
                         ),
                 ) {
+                    if (showQuality) {
+                        QualityDropdown(
+                            qualities = state.decision?.availableQualities.orEmpty(),
+                            selectedId = state.selectedQualityId,
+                            selectedFocus = qualitySelectedFocus,
+                            onSelect = { id ->
+                                if (id != state.selectedQualityId) viewModel.changeQuality(id)
+                                showQuality = false
+                                revealControls()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(bottom = 10.dp),
+                        )
+                    }
+
                     if (scrubbing || seekFocused) {
                         Box(Modifier.fillMaxWidth().height(20.dp)) {
                             Text(
@@ -451,6 +467,7 @@ fun PlayerScreen(
                         tv = tv,
                         focusRequester = seekFocus,
                         upFocus = playFocus,
+                        downFocus = qualityButtonFocus,
                         onFocusedChange = { seekFocused = it },
                         modifier = Modifier
                             .fillMaxWidth()
@@ -475,8 +492,21 @@ fun PlayerScreen(
                                 text = if (seekFocused) "← → seek · OK confirm" else "↓ seek bar",
                                 color = Color.White.copy(alpha = 0.45f),
                                 style = MaterialTheme.typography.labelMedium,
+                                modifier = Modifier.padding(end = 10.dp),
                             )
                         }
+                        QualityButton(
+                            label = state.decision?.availableQualities
+                                ?.firstOrNull { it.id == state.selectedQualityId }
+                                ?.label
+                                ?: state.selectedQualityId.replaceFirstChar(Char::uppercase),
+                            focusRequester = qualityButtonFocus,
+                            upFocus = seekFocus,
+                            onClick = {
+                                showQuality = !showQuality
+                                revealControls()
+                            },
+                        )
                     }
                 }
             }
@@ -494,6 +524,7 @@ private fun PlayerSeekBar(
     tv: Boolean,
     focusRequester: FocusRequester,
     upFocus: FocusRequester,
+    downFocus: FocusRequester,
     onFocusedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -505,6 +536,7 @@ private fun PlayerSeekBar(
             valueRange = valueRange,
             focusRequester = focusRequester,
             upFocus = upFocus,
+            downFocus = downFocus,
             onFocusedChange = onFocusedChange,
             modifier = modifier,
         )
@@ -554,6 +586,7 @@ private fun TvSeekBar(
     valueRange: ClosedFloatingPointRange<Float>,
     focusRequester: FocusRequester,
     upFocus: FocusRequester,
+    downFocus: FocusRequester,
     onFocusedChange: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
 ) {
@@ -571,7 +604,7 @@ private fun TvSeekBar(
                 // Keep DPAD L/R on this node — they scrub, they must not move focus.
                 left = FocusRequester.Cancel
                 right = FocusRequester.Cancel
-                down = FocusRequester.Cancel
+                down = downFocus
             }
             .onFocusChanged { state ->
                 val leaving = focused && !state.isFocused
@@ -657,6 +690,113 @@ private fun TvSeekBar(
                         },
                     ),
             )
+        }
+    }
+}
+
+/** Compact pill next to the timeline showing the active quality; opens the dropdown. */
+@Composable
+private fun QualityButton(
+    label: String,
+    focusRequester: FocusRequester,
+    upFocus: FocusRequester,
+    onClick: () -> Unit,
+) {
+    Row(
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        modifier = Modifier
+            .focusRequester(focusRequester)
+            .focusProperties { up = upFocus }
+            .tvFocusable(onClick = onClick, shape = RoundedCornerShape(16.dp))
+            .clip(RoundedCornerShape(16.dp))
+            .background(Color.White.copy(alpha = 0.14f))
+            .padding(horizontal = 12.dp, vertical = 6.dp),
+    ) {
+        Icon(
+            Icons.Default.Tune,
+            contentDescription = "Quality",
+            tint = Color.White,
+            modifier = Modifier.size(14.dp),
+        )
+        Text(
+            text = label,
+            color = Color.White,
+            style = MaterialTheme.typography.labelLarge,
+            maxLines = 1,
+        )
+    }
+}
+
+/**
+ * Vertical dropdown anchored above the timeline (end-aligned). One focusable
+ * row per quality; the selected row gets initial focus so OK re-confirms.
+ */
+@Composable
+private fun QualityDropdown(
+    qualities: List<com.freeplex.android.core.model.QualityOption>,
+    selectedId: String,
+    selectedFocus: FocusRequester,
+    onSelect: (String) -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier = modifier
+            .widthIn(min = 200.dp, max = 280.dp)
+            .clip(RoundedCornerShape(12.dp))
+            .background(Color(0xF0161B24))
+            .border(1.dp, Color.White.copy(alpha = 0.08f), RoundedCornerShape(12.dp))
+            .padding(vertical = 6.dp)
+            .heightIn(max = 320.dp)
+            .verticalScroll(rememberScrollState()),
+    ) {
+        Text(
+            text = "Quality",
+            color = Color.White.copy(alpha = 0.55f),
+            style = MaterialTheme.typography.labelMedium,
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
+        )
+        qualities.forEach { q ->
+            val selected = q.id == selectedId
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 6.dp)
+                    .then(if (selected) Modifier.focusRequester(selectedFocus) else Modifier)
+                    .tvFocusable(onClick = { onSelect(q.id) }, shape = RoundedCornerShape(8.dp))
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(
+                        if (selected) Color.White.copy(alpha = 0.10f) else Color.Transparent,
+                    )
+                    .padding(horizontal = 10.dp, vertical = 8.dp),
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = q.label,
+                        color = Color.White,
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    q.bitrateKbps?.let { kbps ->
+                        Text(
+                            text = if (kbps >= 1000) "%.1f Mbps".format(kbps / 1000.0) else "$kbps kbps",
+                            color = Color.White.copy(alpha = 0.5f),
+                            style = MaterialTheme.typography.labelMedium,
+                        )
+                    }
+                }
+                if (selected) {
+                    Icon(
+                        Icons.Default.Check,
+                        contentDescription = "Selected",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(16.dp),
+                    )
+                }
+            }
         }
     }
 }

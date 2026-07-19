@@ -49,8 +49,15 @@ class FreePlexRepository @Inject constructor(
     suspend fun createLibrary(body: CreateLibraryRequest) = api.createLibrary(body)
     suspend fun deleteLibrary(id: String) = api.deleteLibrary(id)
     suspend fun scanLibrary(id: String): JobDto = api.scanLibrary(id)
-    suspend fun libraryItems(id: String, page: Int, q: String? = null): PagedResult<MediaItemSummary> =
-        api.libraryItems(id, page = page, q = q)
+    suspend fun libraryItems(
+        id: String,
+        page: Int,
+        sort: String = "added",
+        order: String = "desc",
+        watched: Boolean? = null,
+        q: String? = null,
+    ): PagedResult<MediaItemSummary> =
+        api.libraryItems(id, page = page, sort = sort, order = order, watched = watched, q = q)
     suspend fun itemDetail(id: String): ItemDetailResult {
         val element = api.item(id)
         val kind = element.jsonObject["kind"]?.toString()?.trim('"')
