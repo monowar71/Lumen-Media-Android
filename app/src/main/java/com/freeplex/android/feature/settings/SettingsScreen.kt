@@ -8,12 +8,17 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -22,6 +27,8 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.freeplex.android.core.designsystem.FpTextField
 import com.freeplex.android.core.designsystem.TvContentPadding
 import com.freeplex.android.core.designsystem.isTvDevice
+import com.freeplex.android.core.designsystem.tvFocusable
+import com.freeplex.android.core.model.LibraryDto
 
 @Composable
 fun SettingsScreen(
@@ -30,6 +37,38 @@ fun SettingsScreen(
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tv = isTvDevice()
+    // Deleting a library is destructive and easy to hit with a remote —
+    // always confirm before calling the API.
+    var libraryPendingDelete by remember { mutableStateOf<LibraryDto?>(null) }
+
+    libraryPendingDelete?.let { lib ->
+        AlertDialog(
+            onDismissRequest = { libraryPendingDelete = null },
+            title = { Text(text = "Delete library?") },
+            text = {
+                Text(
+                    text = "\"${lib.name}\" (${lib.itemCount} items) will be removed " +
+                        "from the server. Media files on disk are not touched.",
+                )
+            },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        viewModel.deleteLibrary(lib.id)
+                        libraryPendingDelete = null
+                    },
+                ) {
+                    Text(text = "Delete", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { libraryPendingDelete = null }) {
+                    Text(text = "Cancel")
+                }
+            },
+        )
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
@@ -85,10 +124,22 @@ fun SettingsScreen(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        Button(onClick = { viewModel.scanLibrary(lib.id) }) {
+                        Button(
+                            onClick = { viewModel.scanLibrary(lib.id) },
+                            modifier = Modifier.tvFocusable(
+                                onClick = { viewModel.scanLibrary(lib.id) },
+                                scaleFocused = 1.05f,
+                            ),
+                        ) {
                             Text(text = "Scan")
                         }
-                        Button(onClick = { viewModel.deleteLibrary(lib.id) }) {
+                        Button(
+                            onClick = { libraryPendingDelete = lib },
+                            modifier = Modifier.tvFocusable(
+                                onClick = { libraryPendingDelete = lib },
+                                scaleFocused = 1.05f,
+                            ),
+                        ) {
                             Text(text = "Delete")
                         }
                     }

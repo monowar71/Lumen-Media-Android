@@ -92,6 +92,8 @@ data class UserData(
     val playbackPositionMs: Long? = null,
     val isFavorite: Boolean? = null,
     val unwatchedEpisodeCount: Int? = null,
+    /** Series detail: episode to resume / start next. */
+    val nextUp: EpisodeSummary? = null,
 )
 
 @Serializable
@@ -195,6 +197,7 @@ data class MovieDetail(
     val officialRating: String? = null,
     val genres: List<String>? = null,
     val people: List<Person>? = null,
+    val trailerUrl: String? = null,
     val artwork: ArtworkSet = ArtworkSet(),
     val mediaSources: List<MediaSource> = emptyList(),
     val userData: UserData = UserData(),
@@ -213,6 +216,7 @@ data class SeriesDetail(
     val officialRating: String? = null,
     val genres: List<String>? = null,
     val people: List<Person>? = null,
+    val trailerUrl: String? = null,
     val seasonCount: Int = 0,
     val episodeCount: Int = 0,
     val artwork: ArtworkSet = ArtworkSet(),

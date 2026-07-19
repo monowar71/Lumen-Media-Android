@@ -19,10 +19,19 @@ import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
+import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
+import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
@@ -43,6 +52,7 @@ import com.freeplex.android.core.designsystem.tvFocusable
 import com.freeplex.android.core.model.MediaItemSummary
 import com.freeplex.android.core.util.artworkUrl
 
+@OptIn(ExperimentalComposeUiApi::class)
 @Composable
 fun HomeScreen(
     onOpenItem: (String) -> Unit,
@@ -59,6 +69,21 @@ fun HomeScreen(
         )
         else -> {
             val hero = state.sections.firstOrNull()?.items?.firstOrNull()
+            val heroFocus = remember { FocusRequester() }
+            // Saveable so it survives back-navigation from Details: on return
+            // the rows' focusRestorer must win, not the hero grabbing focus again.
+            var heroFocusRequested by rememberSaveable { mutableStateOf(false) }
+            if (tv && hero != null) {
+                // Land D-pad focus on the content (hero) instead of the sidebar,
+                // on the first entry only. requestFocus throws if the node is
+                // not attached yet, hence runCatching.
+                LaunchedEffect(Unit) {
+                    if (!heroFocusRequested) {
+                        heroFocusRequested = true
+                        runCatching { heroFocus.requestFocus() }
+                    }
+                }
+            }
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = if (tv) {
@@ -77,8 +102,8 @@ fun HomeScreen(
                         HomeHero(
                             item = hero,
                             baseUrl = state.baseUrl,
-                            accessToken = state.accessToken,
                             onOpen = { onOpenItem(hero.id) },
+                            modifier = Modifier.focusRequester(heroFocus),
                         )
                         Spacer(Modifier.height(TvDimens.sectionGap))
                     }
@@ -102,6 +127,9 @@ fun HomeScreen(
                             ),
                         )
                         LazyRow(
+                            // Re-entering the row with D-pad restores focus to
+                            // the card that was focused before opening details.
+                            modifier = Modifier.focusRestorer(),
                             contentPadding = PaddingValues(
                                 horizontal = if (tv) TvDimens.focusHalo else 16.dp,
                                 vertical = if (tv) TvDimens.focusHalo else 0.dp,
@@ -114,7 +142,6 @@ fun HomeScreen(
                                 PosterCard(
                                     item = item,
                                     baseUrl = state.baseUrl,
-                                    accessToken = state.accessToken,
                                     onClick = { onOpenItem(item.id) },
                                 )
                             }
@@ -130,20 +157,19 @@ fun HomeScreen(
 private fun HomeHero(
     item: MediaItemSummary,
     baseUrl: String,
-    accessToken: String?,
     onOpen: () -> Unit,
+    modifier: Modifier = Modifier,
 ) {
     val backdrop = item.artwork.backdrop ?: item.artwork.poster ?: item.artwork.thumb
     val model = artworkUrl(
         baseUrl = baseUrl,
         path = backdrop,
-        token = accessToken,
         width = 1280,
         height = 720,
         quality = 70,
     )
     Box(
-        modifier = Modifier
+        modifier = modifier
             .fillMaxWidth()
             .height(TvDimens.heroHeight)
             .clip(RoundedCornerShape(TvDimens.corner))

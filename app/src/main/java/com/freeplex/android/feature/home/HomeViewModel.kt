@@ -20,14 +20,12 @@ data class HomeUiState(
     val error: String? = null,
     val sections: List<HomeSection> = emptyList(),
     val baseUrl: String = "",
-    val accessToken: String? = null,
 )
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
     private val repository: FreePlexRepository,
     private val settingsRepository: SettingsRepository,
-    private val sessionStore: com.freeplex.android.core.preferences.SessionStore,
 ) : ViewModel() {
     private val _state = MutableStateFlow(HomeUiState())
     val state: StateFlow<HomeUiState> = _state.asStateFlow()
@@ -38,7 +36,6 @@ class HomeViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             val baseUrl = settingsRepository.settings.first().baseUrl
-            val token = sessionStore.accessToken
             runCatching { repository.home() }
                 .onSuccess { home ->
                     _state.update {
@@ -46,7 +43,6 @@ class HomeViewModel @Inject constructor(
                             loading = false,
                             sections = home.sections.filter { s -> s.items.isNotEmpty() },
                             baseUrl = baseUrl,
-                            accessToken = token,
                         )
                     }
                 }

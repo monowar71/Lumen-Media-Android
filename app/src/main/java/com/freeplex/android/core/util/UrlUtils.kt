@@ -15,13 +15,15 @@ fun absoluteUrl(baseUrl: String, pathOrUrl: String): String {
 }
 
 /**
- * Artwork URL sized for the target view. Mirrors web `artworkUrl`:
- * pass short-lived JWT as `access_token` because image loaders often cannot set headers.
+ * Artwork URL sized for the target view.
+ *
+ * Deliberately token-free: Coil authenticates via the shared OkHttpClient's
+ * Authorization header, and a token in the URL would poison Coil's cache keys
+ * (every token refresh invalidates the whole poster cache).
  */
 fun artworkUrl(
     baseUrl: String,
     path: String?,
-    token: String? = null,
     width: Int? = null,
     height: Int? = null,
     quality: Int = 80,
@@ -32,13 +34,7 @@ fun artworkUrl(
         if (width != null) add("w=$width")
         if (height != null) add("h=$height")
         add("quality=$quality")
-        if (!token.isNullOrBlank()) {
-            // String charset overload: Charset overload requires API 33+
-            @Suppress("DEPRECATION")
-            add("access_token=${java.net.URLEncoder.encode(token, "UTF-8")}")
-        }
     }
-    if (params.isEmpty()) return absolute
     val separator = if (absolute.contains('?')) '&' else '?'
     return absolute + separator + params.joinToString("&")
 }

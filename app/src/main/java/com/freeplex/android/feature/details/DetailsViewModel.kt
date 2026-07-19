@@ -24,7 +24,6 @@ data class DetailsUiState(
     val loading: Boolean = true,
     val error: String? = null,
     val baseUrl: String = "",
-    val accessToken: String? = null,
     val movie: MovieDetail? = null,
     val series: SeriesDetail? = null,
     val seasons: List<Season> = emptyList(),
@@ -37,7 +36,6 @@ class DetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: FreePlexRepository,
     private val settingsRepository: SettingsRepository,
-    private val sessionStore: com.freeplex.android.core.preferences.SessionStore,
 ) : ViewModel() {
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
     private val _state = MutableStateFlow(DetailsUiState())
@@ -49,7 +47,6 @@ class DetailsViewModel @Inject constructor(
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             val baseUrl = settingsRepository.settings.first().baseUrl
-            val token = sessionStore.accessToken
             runCatching { repository.itemDetail(itemId) }
                 .onSuccess { detail ->
                     when (detail) {
@@ -61,7 +58,6 @@ class DetailsViewModel @Inject constructor(
                                 seasons = emptyList(),
                                 episodes = emptyList(),
                                 baseUrl = baseUrl,
-                                accessToken = token,
                             )
                         }
                         is ItemDetailResult.Series -> {
@@ -77,7 +73,6 @@ class DetailsViewModel @Inject constructor(
                                     selectedSeasonId = first?.id,
                                     episodes = episodes,
                                     baseUrl = baseUrl,
-                                    accessToken = token,
                                 )
                             }
                         }
@@ -92,8 +87,9 @@ class DetailsViewModel @Inject constructor(
     }
 
     fun selectSeason(seasonId: String) {
+        if (seasonId == _state.value.selectedSeasonId) return
         viewModelScope.launch {
-            _state.update { it.copy(selectedSeasonId = seasonId) }
+            _state.update { it.copy(selectedSeasonId = seasonId, episodes = emptyList()) }
             runCatching { repository.episodes(seasonId) }
                 .onSuccess { eps -> _state.update { it.copy(episodes = eps) } }
         }

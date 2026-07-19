@@ -22,10 +22,13 @@ import com.freeplex.android.core.util.DeviceProfileFactory
 import com.freeplex.android.core.util.NetworkKindDetector
 import com.freeplex.android.core.util.PlaybackSource
 import com.freeplex.android.core.util.resolvePlaybackSource
+import com.freeplex.android.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
 import javax.inject.Inject
+import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.NonCancellable
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -34,6 +37,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 data class PlayerUiState(
     val loading: Boolean = true,
@@ -49,6 +53,7 @@ data class PlayerUiState(
     val seeking: Boolean = false,
 )
 
+@androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @HiltViewModel
 class PlayerViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
@@ -56,6 +61,7 @@ class PlayerViewModel @Inject constructor(
     private val repository: FreePlexRepository,
     private val settingsRepository: SettingsRepository,
     private val sessionStore: SessionStore,
+    @ApplicationScope private val appScope: CoroutineScope,
 ) : ViewModel() {
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
     private val initialResumeMs: Long = savedStateHandle.get<String>("resumeMs")?.toLongOrNull()
@@ -64,6 +70,10 @@ class PlayerViewModel @Inject constructor(
 
     private val _state = MutableStateFlow(PlayerUiState())
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
+
+    // Whether player chrome is on screen. Drives the ticker rate: smooth 250ms
+    // updates only while the user can actually see the seek bar.
+    private val uiVisible = MutableStateFlow(true)
 
     val player: ExoPlayer = ExoPlayer.Builder(context).build().also {
         it.playWhenReady = true
@@ -307,6 +317,11 @@ class PlayerViewModel @Inject constructor(
         return maxOf(fromDecision, fromPlayer, _state.value.durationMs)
     }
 
+    /** Called by the screen when controls visibility changes. */
+    fun setUiVisible(visible: Boolean) {
+        uiVisible.value = visible
+    }
+
     private fun startTicker() {
         tickerJob?.cancel()
         tickerJob = viewModelScope.launch {
@@ -319,17 +334,31 @@ class PlayerViewModel @Inject constructor(
                     } else {
                         timelineOffsetMs + player.bufferedPosition.coerceAtLeast(0L)
                     }
-                    _state.update {
-                        it.copy(
-                            positionMs = position,
-                            durationMs = duration,
-                            bufferedMs = bufferedAbs.coerceAtMost(if (duration > 0) duration else bufferedAbs),
-                            playing = player.isPlaying,
-                            buffering = player.playbackState == Player.STATE_BUFFERING,
-                        )
+                    val buffered = bufferedAbs.coerceAtMost(if (duration > 0) duration else bufferedAbs)
+                    val playing = player.isPlaying
+                    val buffering = player.playbackState == Player.STATE_BUFFERING
+                    val current = _state.value
+                    // Skip no-op emissions (e.g. while paused) so the screen
+                    // does not recompose for identical state.
+                    val changed = current.positionMs != position ||
+                        current.durationMs != duration ||
+                        current.bufferedMs != buffered ||
+                        current.playing != playing ||
+                        current.buffering != buffering
+                    if (changed) {
+                        _state.update {
+                            it.copy(
+                                positionMs = position,
+                                durationMs = duration,
+                                bufferedMs = buffered,
+                                playing = playing,
+                                buffering = buffering,
+                            )
+                        }
                     }
                 }
-                delay(250)
+                // Coarse 1s tick while chrome is hidden; smooth only when visible.
+                delay(if (uiVisible.value) 250 else 1_000)
             }
         }
     }
@@ -372,17 +401,44 @@ class PlayerViewModel @Inject constructor(
 
     fun retry() = startPlayback(absolutePosition().coerceAtLeast(initialResumeMs))
 
+    /** Screen no longer visible (Home/app switch): pause and persist progress now. */
+    fun onBackground() {
+        player.pause()
+        viewModelScope.launch { reportProgress("paused") }
+    }
+
     override fun onCleared() {
         progressJob?.cancel()
         pingJob?.cancel()
         tickerJob?.cancel()
         seekJob?.cancel()
         player.removeListener(playerListener)
-        viewModelScope.launch {
-            reportProgress("stopped")
-            sessionId?.let { repository.stopSession(it) }
-        }
+        // Capture playback state before release: the player cannot be queried
+        // afterwards, and the final report runs asynchronously.
+        val sid = sessionId
+        val position = absolutePosition()
+        val duration = effectiveDuration()
         player.release()
+        if (sid != null) {
+            // viewModelScope is already cancelled inside onCleared, so the final
+            // progress report and session stop must run on a scope that survives.
+            appScope.launch {
+                withContext(NonCancellable) {
+                    runCatching {
+                        repository.putProgress(
+                            itemId,
+                            ProgressRequest(
+                                positionMs = position,
+                                durationMs = duration.coerceAtLeast(0),
+                                sessionId = sid,
+                                state = "stopped",
+                            ),
+                        )
+                    }
+                    repository.stopSession(sid)
+                }
+            }
+        }
         super.onCleared()
     }
 }

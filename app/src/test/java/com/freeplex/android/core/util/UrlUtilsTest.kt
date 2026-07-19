@@ -27,17 +27,17 @@ class UrlUtilsTest {
     }
 
     @Test
-    fun artworkUrl_addsSizeAndAccessToken() {
+    fun artworkUrl_addsSize_andNeverEmbedsToken() {
         val url = artworkUrl(
             baseUrl = "http://host:8096",
             path = "/api/v1/items/1/artwork/Poster",
-            token = "tok",
             width = 240,
             height = 360,
         )
         assertThat(url).contains("w=240")
         assertThat(url).contains("h=360")
-        assertThat(url).contains("access_token=tok")
+        // Token must not appear in image URLs: it would poison Coil cache keys.
+        assertThat(url).doesNotContain("access_token")
         assertThat(url).startsWith("http://host:8096/api/v1/items/1/artwork/Poster")
     }
 }

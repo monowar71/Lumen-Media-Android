@@ -6,6 +6,7 @@ import com.freeplex.android.core.model.TokenResponse
 import com.freeplex.android.core.model.UserDto
 import com.freeplex.android.core.network.FreePlexRepository
 import com.freeplex.android.core.preferences.AppSettings
+import com.freeplex.android.core.preferences.LibrarySort
 import com.freeplex.android.core.preferences.SessionStore
 import com.freeplex.android.core.preferences.SettingsRepository
 import com.google.common.truth.Truth.assertThat
@@ -36,7 +37,14 @@ class AuthViewModelTest {
     fun setUp() {
         Dispatchers.setMain(dispatcher)
         every { settingsRepository.settings } returns flowOf(
-            AppSettings("http://192.168.0.2:8096", 0, 8000, "auto"),
+            AppSettings(
+                baseUrl = "http://192.168.0.2:8096",
+                lanCapKbps = 0,
+                externalCapKbps = 8000,
+                preferredMode = "auto",
+                librarySort = LibrarySort.Added,
+                libraryInProgressFirst = false,
+            ),
         )
         every { sessionStore.readSession() } returns null
         every { sessionStore.isRememberCredentials() } returns false
