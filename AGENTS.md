@@ -56,7 +56,7 @@ client_android/
 
 - ktlint + detekt, предупреждения = ошибки в CI.
 - Compose: stateless-компоненты + hoisting состояния; превью (`@Preview`) для экранов.
-- Визуальный язык — как web: тёмный cinema (`#0f1014`), amber accent `#e5a00d`, Manrope, poster 2:3, focus ring = accent.
+- Визуальный язык — как web: тёмный cinema (`#0b1f1a`), mint accent `#3ecf9a`, Manrope, poster 2:3, focus ring = accent.
 - Никаких блокирующих вызовов в main-потоке; всё через Coroutines/Flow.
 
 ## Контроль ресурсов (CPU/ОЗУ)

@@ -5,9 +5,25 @@
     android:viewportWidth="320"
     android:viewportHeight="180">
     <path
-        android:fillColor="#0B0D10"
+        android:fillColor="#0B1F1A"
         android:pathData="M0,0h320v180h-320z" />
-    <path
-        android:fillColor="#E8B84A"
-        android:pathData="M120,50 L120,130 L200,90 Z" />
+    <!-- Centered LM mark (128x128) -->
+    <group
+        android:translateX="96"
+        android:translateY="26">
+        <path
+            android:pathData="M36,30 V92 H64"
+            android:fillColor="#00000000"
+            android:strokeWidth="10"
+            android:strokeColor="#E7F6F0"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+        <path
+            android:pathData="M48,30 L64,62 L80,30 L94,30 V92"
+            android:fillColor="#00000000"
+            android:strokeWidth="10"
+            android:strokeColor="#3ECF9A"
+            android:strokeLineCap="round"
+            android:strokeLineJoin="round" />
+    </group>
 </vector>
