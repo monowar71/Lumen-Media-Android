@@ -34,6 +34,7 @@ import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,6 +42,7 @@ import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.EmptyState
 import com.lumenmedia.android.core.designsystem.ErrorState
 import com.lumenmedia.android.core.designsystem.FpButton
@@ -66,8 +68,8 @@ fun HomeScreen(
         state.loading -> FullPageLoading()
         state.error != null -> ErrorState(state.error!!, onRetry = viewModel::refresh)
         state.sections.isEmpty() -> EmptyState(
-            title = "Your library is empty",
-            body = "Add a library in Settings and scan media files.",
+            title = stringResource(R.string.home_empty_title),
+            body = stringResource(R.string.home_empty_body),
         )
         else -> {
             val hero = state.sections.firstOrNull()?.items?.firstOrNull()
@@ -215,7 +217,7 @@ private fun HomeHero(
             verticalArrangement = Arrangement.spacedBy(FpDimens.space6),
         ) {
             Text(
-                text = "FEATURED",
+                text = stringResource(R.string.home_featured).uppercase(),
                 style = MaterialTheme.typography.labelMedium,
                 fontWeight = FontWeight.SemiBold,
                 color = MaterialTheme.colorScheme.primary,
@@ -238,7 +240,7 @@ private fun HomeHero(
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
                 }
-            FpButton(onClick = onOpen, label = "Open")
+            FpButton(onClick = onOpen, label = stringResource(R.string.home_details))
         }
     }
 }

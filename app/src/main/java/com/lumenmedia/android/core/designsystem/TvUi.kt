@@ -74,8 +74,10 @@ fun Modifier.tvFocusable(
             clip = false
         }
         .onFocusChanged { focused = it.isFocused }
+        // Keep border width constant: 0↔N remounts layout and makes LazyRow
+        // focus search skip every other item on TV D-pad.
         .border(
-            width = if (focused) borderWidth else 0.dp,
+            width = borderWidth,
             color = if (focused) borderColor else Color.Transparent,
             shape = shape,
         )
@@ -101,7 +103,7 @@ fun Modifier.tvNavItem(
         .clip(RoundedCornerShape(FpDimens.radiusMd))
         .background(bg)
         .border(
-            width = if (focused) FpDimens.focusBorder else 0.dp,
+            width = FpDimens.focusBorder,
             color = if (focused) FpColors.Accent else Color.Transparent,
             shape = RoundedCornerShape(FpDimens.radiusMd),
         )

@@ -28,12 +28,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.EditTextDialog
 import com.lumenmedia.android.core.designsystem.EmptyState
 import com.lumenmedia.android.core.designsystem.FpDimens
@@ -62,9 +64,9 @@ fun SearchScreen(
 
     if (editQuery) {
         EditTextDialog(
-            title = "Search",
+            title = stringResource(R.string.search_title),
             initialValue = state.query,
-            label = "Movies, shows…",
+            label = stringResource(R.string.search_placeholder),
             onDismiss = { editQuery = false },
             onConfirm = {
                 viewModel.onQueryChange(it)
@@ -79,15 +81,15 @@ fun SearchScreen(
             .padding(fpContentPadding()),
     ) {
         Text(
-            "Search",
+            stringResource(R.string.search_title),
             style = MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold,
         )
         if (tv) {
             SettingsClickRow(
-                title = "Query",
-                value = state.query.ifBlank { "Tap OK to type…" },
-                subtitle = "Opens keyboard only when editing",
+                title = stringResource(R.string.search_query),
+                value = state.query.ifBlank { stringResource(R.string.search_hint_tv) },
+                subtitle = stringResource(R.string.search_hint_tv_subtitle),
                 onClick = { editQuery = true },
                 modifier = Modifier.padding(top = FpDimens.space12, bottom = FpDimens.space8),
             )
@@ -95,7 +97,7 @@ fun SearchScreen(
             FpTextField(
                 state.query,
                 viewModel::onQueryChange,
-                "Movies, shows…",
+                stringResource(R.string.search_placeholder),
                 modifier = Modifier.padding(top = FpDimens.space12),
             )
         }
@@ -107,18 +109,18 @@ fun SearchScreen(
                 modifier = Modifier.padding(top = FpDimens.space16),
             )
             state.query.isBlank() -> EmptyState(
-                title = "Find something to watch",
-                body = "Search movies, series, and episodes.",
+                title = stringResource(R.string.search_empty_title),
+                body = stringResource(R.string.search_empty_body),
                 modifier = Modifier.weight(1f),
             )
             state.movies.isEmpty() && state.series.isEmpty() && state.episodes.isEmpty() -> EmptyState(
-                title = "No results",
-                body = "Try another title or spelling.",
+                title = stringResource(R.string.search_no_results),
+                body = stringResource(R.string.search_no_results_body),
                 modifier = Modifier.weight(1f),
             )
             else -> LazyColumn(modifier = Modifier.fillMaxSize().padding(top = FpDimens.space8)) {
                 if (state.movies.isNotEmpty()) {
-                    item(key = "movies-header") { FpSectionTitle("Movies") }
+                    item(key = "movies-header") { FpSectionTitle(stringResource(R.string.search_movies)) }
                     item(key = "movies-row") {
                         PosterResultRow(
                             items = state.movies,
@@ -128,7 +130,7 @@ fun SearchScreen(
                     }
                 }
                 if (state.series.isNotEmpty()) {
-                    item(key = "series-header") { FpSectionTitle("Series") }
+                    item(key = "series-header") { FpSectionTitle(stringResource(R.string.search_series)) }
                     item(key = "series-row") {
                         PosterResultRow(
                             items = state.series,
@@ -138,7 +140,7 @@ fun SearchScreen(
                     }
                 }
                 if (state.episodes.isNotEmpty()) {
-                    item(key = "episodes-header") { FpSectionTitle("Episodes") }
+                    item(key = "episodes-header") { FpSectionTitle(stringResource(R.string.search_episodes)) }
                     items(state.episodes, key = { it.id }) { ep ->
                         EpisodeResultRow(
                             episode = ep,
@@ -192,6 +194,8 @@ private fun EpisodeResultRow(
         height = 180,
     )
     val shape = RoundedCornerShape(FpDimens.radiusMd)
+    val episodeTitle = episode.title
+        ?: stringResource(R.string.details_episode_n, episode.episodeNumber)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -221,8 +225,7 @@ private fun EpisodeResultRow(
         }
         Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "S${episode.seasonNumber}E${episode.episodeNumber}  ·  " +
-                    (episode.title ?: "Episode ${episode.episodeNumber}"),
+                text = "S${episode.seasonNumber}E${episode.episodeNumber}  ·  $episodeTitle",
                 fontWeight = FontWeight.SemiBold,
                 style = MaterialTheme.typography.titleSmall,
                 maxLines = 1,

@@ -11,6 +11,7 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.lumenmedia.android.BuildConfig
 import com.lumenmedia.android.core.util.ConnectionKind
+import com.lumenmedia.android.core.util.LocaleHelper
 import com.lumenmedia.android.core.util.normalizeBaseUrl
 import com.lumenmedia.android.core.util.rewriteLoopbackForEmulator
 import com.lumenmedia.android.di.ApplicationScope
@@ -29,13 +30,19 @@ import kotlinx.coroutines.runBlocking
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore("lumenmedia_settings")
 
-/** Library grid sort options; mapped to the server's `sort`/`order` query params. */
-enum class LibrarySort(val apiSort: String, val apiOrder: String) {
-    /** Alphabetical by title. */
-    Name("title", "asc"),
+/** Library grid sort field; mapped to the server's `sort` query param. */
+enum class LibrarySort(val apiSort: String) {
+    Title("title"),
+    Year("year"),
+    Added("added"),
+    Rating("rating"),
+    Runtime("runtime"),
+}
 
-    /** Newest additions first. */
-    Added("added", "desc"),
+/** Sort direction; mapped to the server's `order` query param. */
+enum class LibraryOrder(val apiOrder: String) {
+    Asc("asc"),
+    Desc("desc"),
 }
 
 data class AppSettings(
@@ -44,7 +51,10 @@ data class AppSettings(
     val externalCapKbps: Int,
     val preferredMode: String,
     val librarySort: LibrarySort,
+    val libraryOrder: LibraryOrder,
     val libraryInProgressFirst: Boolean,
+    /** UI locale tag: `ru` (default) or `en`. */
+    val locale: String,
     /** Max local episode cache size in bytes; 0 = unlimited. Default 50 GiB. */
     val maxCacheBytes: Long,
 )
@@ -59,7 +69,9 @@ class SettingsRepository @Inject constructor(
     private val externalCapKey = intPreferencesKey("external_cap")
     private val modeKey = stringPreferencesKey("preferred_mode")
     private val librarySortKey = stringPreferencesKey("library_sort")
+    private val libraryOrderKey = stringPreferencesKey("library_order")
     private val libraryInProgressFirstKey = booleanPreferencesKey("library_in_progress_first")
+    private val localeKey = stringPreferencesKey("locale")
     private val maxCacheBytesKey = longPreferencesKey("max_cache_bytes")
 
     private val settingsFlow: Flow<AppSettings> = context.dataStore.data.map { prefs ->
@@ -71,9 +83,13 @@ class SettingsRepository @Inject constructor(
             externalCapKbps = prefs[externalCapKey] ?: 8_000,
             preferredMode = prefs[modeKey] ?: "auto",
             librarySort = prefs[librarySortKey]
-                ?.let { stored -> LibrarySort.entries.find { it.name == stored } }
+                ?.let { stored -> resolveLibrarySort(stored) }
                 ?: LibrarySort.Added,
+            libraryOrder = prefs[libraryOrderKey]
+                ?.let { stored -> LibraryOrder.entries.find { it.name == stored } }
+                ?: defaultOrderFor(prefs[librarySortKey]?.let { resolveLibrarySort(it) } ?: LibrarySort.Added),
             libraryInProgressFirst = prefs[libraryInProgressFirstKey] ?: false,
+            locale = prefs[localeKey] ?: LocaleHelper.DEFAULT_TAG,
             maxCacheBytes = prefs[maxCacheBytesKey] ?: DEFAULT_MAX_CACHE_BYTES,
         )
     }
@@ -112,8 +128,18 @@ class SettingsRepository @Inject constructor(
         context.dataStore.edit { it[librarySortKey] = sort.name }
     }
 
+    suspend fun setLibraryOrder(order: LibraryOrder) {
+        context.dataStore.edit { it[libraryOrderKey] = order.name }
+    }
+
     suspend fun setLibraryInProgressFirst(enabled: Boolean) {
         context.dataStore.edit { it[libraryInProgressFirstKey] = enabled }
+    }
+
+    suspend fun setLocale(tag: String) {
+        val normalized = tag.trim().lowercase().ifBlank { LocaleHelper.DEFAULT_TAG }
+        context.dataStore.edit { it[localeKey] = normalized }
+        LocaleHelper.apply(normalized)
     }
 
     suspend fun setMaxCacheBytes(bytes: Long) {
@@ -129,5 +155,18 @@ class SettingsRepository @Inject constructor(
 
     companion object {
         const val DEFAULT_MAX_CACHE_BYTES: Long = 50L * 1024L * 1024L * 1024L
+
+        /** Migrates legacy `Name` enum value to `Title`. */
+        fun resolveLibrarySort(stored: String): LibrarySort? =
+            when (stored) {
+                "Name" -> LibrarySort.Title
+                else -> LibrarySort.entries.find { it.name == stored }
+            }
+
+        fun defaultOrderFor(sort: LibrarySort): LibraryOrder =
+            when (sort) {
+                LibrarySort.Title -> LibraryOrder.Asc
+                else -> LibraryOrder.Desc
+            }
     }
 }

@@ -5,8 +5,11 @@ import android.net.Uri
 import androidx.lifecycle.SavedStateHandle
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import androidx.media3.common.C
 import androidx.media3.common.MediaItem
+import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
@@ -23,6 +26,7 @@ import com.lumenmedia.android.core.preferences.SettingsRepository
 import com.lumenmedia.android.core.util.DeviceProfileFactory
 import com.lumenmedia.android.core.util.NetworkKindDetector
 import com.lumenmedia.android.core.util.PlaybackSource
+import com.lumenmedia.android.core.util.absoluteUrl
 import com.lumenmedia.android.core.util.resolvePlaybackSource
 import com.lumenmedia.android.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -48,6 +52,8 @@ data class PlayerUiState(
     val error: String? = null,
     val decision: PlaybackDecisionResponse? = null,
     val selectedQualityId: String = "auto",
+    val selectedAudioId: String? = null,
+    val selectedSubtitleId: String? = null,
     val baseUrl: String = "",
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
@@ -143,21 +149,32 @@ class PlayerViewModel @Inject constructor(
                         mediaId = itemId,
                         mode = preferredMode,
                         qualityId = qualityId,
+                        audioStreamId = _state.value.selectedAudioId,
+                        subtitleStreamId = _state.value.selectedSubtitleId,
                         resumePositionMs = resumeMs,
                         profile = profile,
                     ),
                 )
                 sessionId = decision.sessionId
                 cacheToken += 1
+                val audioId = _state.value.selectedAudioId ?: pickDefaultAudio(decision)
+                val subtitleId = _state.value.selectedSubtitleId
                 val source = resolvePlaybackSource(decision, settings.baseUrl, cacheToken.toString())
-                attachSource(source, decision.startPositionMs ?: resumeMs, decision)
-                decision to settings.baseUrl
-            }.onSuccess { (decision, baseUrl) ->
+                attachSource(
+                    source = source,
+                    startMs = decision.startPositionMs ?: resumeMs,
+                    decision = decision,
+                    baseUrl = settings.baseUrl,
+                    selectedSubtitleId = subtitleId,
+                )
+                Triple(decision, settings.baseUrl, audioId)
+            }.onSuccess { (decision, baseUrl, audioId) ->
                 _state.update {
                     it.copy(
                         loading = false,
                         decision = decision,
                         selectedQualityId = decision.selectedQualityId,
+                        selectedAudioId = audioId,
                         baseUrl = baseUrl,
                         durationMs = decision.durationMs ?: it.durationMs,
                         positionMs = decision.startPositionMs ?: resumeMs,
@@ -235,6 +252,8 @@ class PlayerViewModel @Inject constructor(
         source: PlaybackSource,
         startMs: Long,
         decision: PlaybackDecisionResponse,
+        baseUrl: String,
+        selectedSubtitleId: String?,
     ) {
         val token = sessionStore.accessToken
         val factory = DefaultHttpDataSource.Factory()
@@ -244,12 +263,31 @@ class PlayerViewModel @Inject constructor(
                     if (!token.isNullOrBlank()) put("Authorization", "Bearer $token")
                 },
             )
-        val mediaItem = MediaItem.fromUri(
-            when (source) {
-                is PlaybackSource.Direct -> source.url
-                is PlaybackSource.Hls -> source.url
-            },
-        )
+        val uri = when (source) {
+            is PlaybackSource.Direct -> source.url
+            is PlaybackSource.Hls -> source.url
+        }
+        val subtitleConfigs = decision.subtitleStreams.mapNotNull { stream ->
+            if (stream.deliveryUrl.isBlank()) return@mapNotNull null
+            val mime = when (stream.format?.lowercase()) {
+                "srt" -> MimeTypes.APPLICATION_SUBRIP
+                "ass", "ssa" -> "text/x-ssa"
+                else -> MimeTypes.TEXT_VTT
+            }
+            MediaItem.SubtitleConfiguration.Builder(Uri.parse(absoluteUrl(baseUrl, stream.deliveryUrl)))
+                .setMimeType(mime)
+                .setLanguage(stream.language)
+                .setId(stream.id)
+                .setLabel(stream.language ?: stream.id)
+                .setSelectionFlags(
+                    if (stream.id == selectedSubtitleId) C.SELECTION_FLAG_DEFAULT else 0,
+                )
+                .build()
+        }
+        val mediaItem = MediaItem.Builder()
+            .setUri(uri)
+            .setSubtitleConfigurations(subtitleConfigs)
+            .build()
         val mediaSource = if (source is PlaybackSource.Hls) {
             HlsMediaSource.Factory(factory).createMediaSource(mediaItem)
         } else {
@@ -257,6 +295,7 @@ class PlayerViewModel @Inject constructor(
         }
         player.setMediaSource(mediaSource)
         player.prepare()
+        applyTextTrackSelection(selectedSubtitleId)
         if (source is PlaybackSource.Direct) {
             timelineOffsetMs = 0L
             if (startMs > 0) player.seekTo(startMs)
@@ -275,6 +314,40 @@ class PlayerViewModel @Inject constructor(
             )
         }
     }
+
+    private fun applyTextTrackSelection(subtitleId: String?) {
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .setTrackTypeDisabled(C.TRACK_TYPE_TEXT, subtitleId == null)
+            .apply {
+                if (subtitleId != null) {
+                    setPreferredTextLanguage(null)
+                }
+            }
+            .build()
+        if (subtitleId == null) return
+        val groups = player.currentTracks.groups
+        for (groupIndex in 0 until groups.size) {
+            val group = groups[groupIndex]
+            if (group.type != C.TRACK_TYPE_TEXT) continue
+            for (trackIndex in 0 until group.length) {
+                val format = group.getTrackFormat(trackIndex)
+                if (format.id == subtitleId || format.label == subtitleId || format.language == subtitleId) {
+                    player.trackSelectionParameters = player.trackSelectionParameters
+                        .buildUpon()
+                        .setOverrideForType(
+                            TrackSelectionOverride(group.mediaTrackGroup, listOf(trackIndex)),
+                        )
+                        .build()
+                    return
+                }
+            }
+        }
+    }
+
+    private fun pickDefaultAudio(decision: PlaybackDecisionResponse): String? =
+        decision.audioStreams.firstOrNull { it.isDefault == true }?.id
+            ?: decision.audioStreams.firstOrNull()?.id
 
     fun togglePlay() {
         if (player.isPlaying) player.pause() else player.play()
@@ -336,7 +409,7 @@ class PlayerViewModel @Inject constructor(
                 val settings = settingsRepository.settings.first()
                 val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
                 val start = next.startPositionMs ?: targetMs
-                attachSource(source, start, next)
+                attachSource(source, start, next, settings.baseUrl, _state.value.selectedSubtitleId)
             }.onFailure { err ->
                 if (epoch != seekEpoch) return@onFailure
                 _state.update {
@@ -370,12 +443,128 @@ class PlayerViewModel @Inject constructor(
                 cacheToken += 1
                 val settings = settingsRepository.settings.first()
                 val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
-                attachSource(source, next.startPositionMs ?: position, next)
+                attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, _state.value.selectedSubtitleId)
                 _state.update {
                     it.copy(decision = next, selectedQualityId = next.selectedQualityId)
                 }
             }.onFailure {
                 startPlayback(position, qualityId, mode)
+            }
+        }
+    }
+
+    fun changeAudio(audioId: String) {
+        if (offlinePlayback) return
+        val decision = _state.value.decision ?: return
+        if (audioId == _state.value.selectedAudioId) return
+        val position = absolutePosition()
+        val previous = sessionId
+        _state.update { it.copy(selectedAudioId = audioId, buffering = true) }
+        viewModelScope.launch {
+            if (previous != null && previous != OFFLINE_SESSION_ID) {
+                repository.stopSession(previous)
+            }
+            sessionId = null
+            runCatching {
+                val settings = settingsRepository.settings.first()
+                val kind = NetworkKindDetector.detect(context)
+                val cap = settingsRepository.capFor(settings, kind)
+                val profile = DeviceProfileFactory.build(cap)
+                val next = repository.playbackDecision(
+                    PlaybackDecisionRequest(
+                        mediaId = itemId,
+                        mode = decision.mode,
+                        qualityId = if (decision.mode == "manual") _state.value.selectedQualityId else null,
+                        audioStreamId = audioId,
+                        subtitleStreamId = _state.value.selectedSubtitleId,
+                        resumePositionMs = position,
+                        profile = profile,
+                    ),
+                )
+                sessionId = next.sessionId
+                cacheToken += 1
+                val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
+                attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, _state.value.selectedSubtitleId)
+                next to settings.baseUrl
+            }.onSuccess { (next, baseUrl) ->
+                _state.update {
+                    it.copy(
+                        decision = next,
+                        selectedQualityId = next.selectedQualityId,
+                        selectedAudioId = audioId,
+                        baseUrl = baseUrl,
+                        buffering = false,
+                        loading = false,
+                        error = null,
+                    )
+                }
+                startPingLoop()
+            }.onFailure { err ->
+                _state.update {
+                    it.copy(
+                        buffering = false,
+                        error = err.toUserMessage("Could not change audio track"),
+                    )
+                }
+            }
+        }
+    }
+
+    fun changeSubtitle(subtitleId: String?) {
+        if (offlinePlayback) return
+        val decision = _state.value.decision
+        _state.update { it.copy(selectedSubtitleId = subtitleId) }
+        if (decision == null) return
+        // Off: just disable text tracks client-side.
+        if (subtitleId == null) {
+            applyTextTrackSelection(null)
+            return
+        }
+        // Prefer a local text-track toggle for sidecar WebVTT; re-decision for server remap/burn-in.
+        val hasSidecar = decision.subtitleStreams.any { it.id == subtitleId && it.deliveryUrl.isNotBlank() }
+        if (hasSidecar) {
+            applyTextTrackSelection(subtitleId)
+        }
+        val position = absolutePosition()
+        val previous = sessionId
+        viewModelScope.launch {
+            runCatching {
+                if (previous != null && previous != OFFLINE_SESSION_ID) {
+                    repository.stopSession(previous)
+                }
+                sessionId = null
+                val settings = settingsRepository.settings.first()
+                val kind = NetworkKindDetector.detect(context)
+                val cap = settingsRepository.capFor(settings, kind)
+                val profile = DeviceProfileFactory.build(cap)
+                val next = repository.playbackDecision(
+                    PlaybackDecisionRequest(
+                        mediaId = itemId,
+                        mode = decision.mode,
+                        qualityId = if (decision.mode == "manual") _state.value.selectedQualityId else null,
+                        audioStreamId = _state.value.selectedAudioId,
+                        subtitleStreamId = subtitleId,
+                        resumePositionMs = position,
+                        profile = profile,
+                    ),
+                )
+                sessionId = next.sessionId
+                cacheToken += 1
+                val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
+                attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, subtitleId)
+                next to settings.baseUrl
+            }.onSuccess { (next, baseUrl) ->
+                _state.update {
+                    it.copy(
+                        decision = next,
+                        selectedQualityId = next.selectedQualityId,
+                        baseUrl = baseUrl,
+                        error = null,
+                    )
+                }
+                startPingLoop()
+            }.onFailure {
+                // Keep client-side subtitle selection even if the round-trip fails.
             }
         }
     }

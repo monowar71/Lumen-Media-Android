@@ -18,10 +18,12 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.EditNumberDialog
 import com.lumenmedia.android.core.designsystem.EditTextDialog
 import com.lumenmedia.android.core.designsystem.FpDimens
@@ -58,15 +60,19 @@ fun SettingsScreen(
     var clearCachePending by remember { mutableStateOf(false) }
     var editTarget by remember { mutableStateOf<SettingsEditTarget?>(null) }
     var cacheExpanded by remember { mutableStateOf(false) }
+    val unlimited = stringResource(R.string.settings_cap_unlimited)
 
     libraryPendingDelete?.let { lib ->
         AlertDialog(
             onDismissRequest = { libraryPendingDelete = null },
-            title = { Text(text = "Delete library?") },
+            title = { Text(text = stringResource(R.string.settings_delete_library_title)) },
             text = {
                 Text(
-                    text = "\"${lib.name}\" (${lib.itemCount} items) will be removed " +
-                        "from the server. Media files on disk are not touched.",
+                    text = stringResource(
+                        R.string.settings_delete_library_body,
+                        lib.name,
+                        lib.itemCount,
+                    ),
                 )
             },
             confirmButton = {
@@ -76,12 +82,15 @@ fun SettingsScreen(
                         libraryPendingDelete = null
                     },
                 ) {
-                    Text(text = "Delete", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = stringResource(R.string.settings_delete),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { libraryPendingDelete = null }) {
-                    Text(text = "Cancel")
+                    Text(text = stringResource(R.string.settings_cancel))
                 }
             },
         )
@@ -90,12 +99,14 @@ fun SettingsScreen(
     if (clearCachePending) {
         AlertDialog(
             onDismissRequest = { clearCachePending = false },
-            title = { Text(text = "Clear offline cache?") },
+            title = { Text(text = stringResource(R.string.settings_clear_cache_title)) },
             text = {
                 Text(
-                    text = "Deletes all downloaded episodes " +
-                        "(${formatByteSize(state.cacheSummary.readyBytes)}, " +
-                        "${state.cacheSummary.readyCount} files).",
+                    text = stringResource(
+                        R.string.settings_clear_cache_body,
+                        formatByteSize(state.cacheSummary.readyBytes),
+                        state.cacheSummary.readyCount,
+                    ),
                 )
             },
             confirmButton = {
@@ -105,12 +116,15 @@ fun SettingsScreen(
                         clearCachePending = false
                     },
                 ) {
-                    Text(text = "Clear", color = MaterialTheme.colorScheme.error)
+                    Text(
+                        text = stringResource(R.string.settings_clear),
+                        color = MaterialTheme.colorScheme.error,
+                    )
                 }
             },
             dismissButton = {
                 TextButton(onClick = { clearCachePending = false }) {
-                    Text(text = "Cancel")
+                    Text(text = stringResource(R.string.settings_cancel))
                 }
             },
         )
@@ -118,7 +132,7 @@ fun SettingsScreen(
 
     when (editTarget) {
         SettingsEditTarget.BaseUrl -> EditTextDialog(
-            title = "Server URL",
+            title = stringResource(R.string.settings_server_url),
             initialValue = state.baseUrl,
             label = "http://host:port",
             onDismiss = { editTarget = null },
@@ -128,10 +142,15 @@ fun SettingsScreen(
             },
         )
         SettingsEditTarget.LanCap -> EditNumberDialog(
-            title = "LAN bandwidth cap",
+            title = stringResource(R.string.settings_lan_cap),
             initialValue = state.lanCapKbps,
-            label = "kbps (0 = unlimited)",
-            presets = listOf("Unlimited" to 0, "40 Mbps" to 40_000, "20 Mbps" to 20_000, "8 Mbps" to 8_000),
+            label = stringResource(R.string.settings_cap_kbps),
+            presets = listOf(
+                unlimited to 0,
+                "40 Mbps" to 40_000,
+                "20 Mbps" to 20_000,
+                "8 Mbps" to 8_000,
+            ),
             onDismiss = { editTarget = null },
             onConfirm = {
                 viewModel.saveLanCap(it)
@@ -139,10 +158,15 @@ fun SettingsScreen(
             },
         )
         SettingsEditTarget.ExternalCap -> EditNumberDialog(
-            title = "External / mobile cap",
+            title = stringResource(R.string.settings_external_cap),
             initialValue = state.externalCapKbps,
-            label = "kbps (0 = unlimited)",
-            presets = listOf("Unlimited" to 0, "8 Mbps" to 8_000, "4 Mbps" to 4_000, "2 Mbps" to 2_000),
+            label = stringResource(R.string.settings_cap_kbps),
+            presets = listOf(
+                unlimited to 0,
+                "8 Mbps" to 8_000,
+                "4 Mbps" to 4_000,
+                "2 Mbps" to 2_000,
+            ),
             onDismiss = { editTarget = null },
             onConfirm = {
                 viewModel.saveExternalCap(it)
@@ -150,10 +174,15 @@ fun SettingsScreen(
             },
         )
         SettingsEditTarget.MaxCache -> EditNumberDialog(
-            title = "Max offline cache",
+            title = stringResource(R.string.settings_max_cache_title),
             initialValue = bytesToGib(state.maxCacheBytes),
-            label = "GiB (0 = unlimited)",
-            presets = listOf("Unlimited" to 0, "20 GiB" to 20, "50 GiB" to 50, "100 GiB" to 100),
+            label = stringResource(R.string.settings_max_cache_label),
+            presets = listOf(
+                unlimited to 0,
+                "20 GiB" to 20,
+                "50 GiB" to 50,
+                "100 GiB" to 100,
+            ),
             onDismiss = { editTarget = null },
             onConfirm = {
                 viewModel.saveMaxCacheBytes(gibToBytes(it))
@@ -161,9 +190,9 @@ fun SettingsScreen(
             },
         )
         SettingsEditTarget.NewLibraryName -> EditTextDialog(
-            title = "Library name",
+            title = stringResource(R.string.settings_library_name),
             initialValue = state.newLibraryName,
-            label = "Name",
+            label = stringResource(R.string.settings_library_name_label),
             onDismiss = { editTarget = null },
             onConfirm = {
                 viewModel.onNewLibraryName(it)
@@ -171,7 +200,7 @@ fun SettingsScreen(
             },
         )
         SettingsEditTarget.NewLibraryPath -> EditTextDialog(
-            title = "Server path",
+            title = stringResource(R.string.settings_server_path),
             initialValue = state.newLibraryPath,
             label = "/media/movies",
             onDismiss = { editTarget = null },
@@ -191,68 +220,105 @@ fun SettingsScreen(
         verticalArrangement = Arrangement.spacedBy(FpDimens.space12),
     ) {
         Text(
-            text = "Settings",
+            text = stringResource(R.string.settings_title),
             style = if (tv) MaterialTheme.typography.headlineMedium else MaterialTheme.typography.headlineSmall,
             fontWeight = FontWeight.ExtraBold,
         )
         Text(
-            text = "Signed in as ${state.username ?: "?"} (${state.role ?: "?"})",
+            text = stringResource(
+                R.string.settings_signed_in_as,
+                state.username ?: "?",
+                state.role ?: "?",
+            ),
             color = MaterialTheme.colorScheme.onSurfaceVariant,
             style = MaterialTheme.typography.bodyMedium,
         )
 
-        SettingsSection(title = "General") {
+        SettingsSection(title = stringResource(R.string.settings_general)) {
             SettingsClickRow(
-                title = "Server URL",
+                title = stringResource(R.string.settings_server_url),
                 value = state.baseUrl,
-                subtitle = "OK / tap to edit",
+                subtitle = stringResource(R.string.settings_tap_to_edit),
                 onClick = { editTarget = SettingsEditTarget.BaseUrl },
+            )
+            SettingsChoiceRow(
+                title = stringResource(R.string.settings_language_title),
+                options = listOf(
+                    "ru" to stringResource(R.string.settings_language_ru),
+                    "en" to stringResource(R.string.settings_language_en),
+                ),
+                selectedId = state.locale,
+                onSelect = viewModel::saveLocale,
             )
         }
 
-        SettingsSection(title = "Playback") {
+        SettingsSection(title = stringResource(R.string.settings_playback)) {
             SettingsClickRow(
-                title = "LAN bandwidth cap",
+                title = stringResource(R.string.settings_lan_cap),
                 value = formatCap(state.lanCapKbps),
-                subtitle = "Used on Wi‑Fi / Ethernet",
+                subtitle = stringResource(R.string.settings_lan_cap_subtitle),
                 onClick = { editTarget = SettingsEditTarget.LanCap },
             )
             SettingsClickRow(
-                title = "External / mobile cap",
+                title = stringResource(R.string.settings_external_cap),
                 value = formatCap(state.externalCapKbps),
-                subtitle = "Used on cellular / remote access",
+                subtitle = stringResource(R.string.settings_external_cap_subtitle),
                 onClick = { editTarget = SettingsEditTarget.ExternalCap },
             )
             SettingsChoiceRow(
-                title = "Preferred quality mode",
-                options = listOf("auto" to "Auto", "manual" to "Manual"),
+                title = stringResource(R.string.settings_preferred_mode),
+                options = listOf(
+                    "auto" to stringResource(R.string.settings_mode_auto),
+                    "manual" to stringResource(R.string.settings_mode_manual),
+                ),
                 selectedId = state.preferredMode,
                 onSelect = viewModel::saveMode,
             )
         }
 
-        SettingsSection(title = "Offline cache") {
+        SettingsSection(title = stringResource(R.string.settings_offline)) {
             SettingsClickRow(
-                title = "Storage used",
-                value = "${formatByteSize(state.cacheSummary.readyBytes)} · " +
-                    "${state.cacheSummary.readyCount} episodes",
+                title = stringResource(R.string.settings_storage_used),
+                value = stringResource(
+                    R.string.settings_storage_episodes,
+                    formatByteSize(state.cacheSummary.readyBytes),
+                    state.cacheSummary.readyCount,
+                ),
                 subtitle = buildString {
-                    append("Limit: ${formatCacheLimit(state.maxCacheBytes)}")
+                    append(
+                        stringResource(
+                            R.string.settings_limit_label,
+                            formatCacheLimit(state.maxCacheBytes),
+                        ),
+                    )
                     if (state.cacheSummary.activeCount > 0) {
-                        append(" · ${state.cacheSummary.activeCount} downloading")
+                        append(
+                            stringResource(
+                                R.string.settings_downloading_count,
+                                state.cacheSummary.activeCount,
+                            ),
+                        )
                     }
                 },
                 onClick = { editTarget = SettingsEditTarget.MaxCache },
             )
             SettingsClickRow(
-                title = "Max cache size",
+                title = stringResource(R.string.settings_max_cache),
                 value = formatCacheLimit(state.maxCacheBytes),
-                subtitle = "Oldest episodes are removed when full",
+                subtitle = stringResource(R.string.settings_max_cache_subtitle),
                 onClick = { editTarget = SettingsEditTarget.MaxCache },
             )
             SettingsActionRow(
-                title = if (cacheExpanded) "Hide downloaded episodes" else "Show downloaded episodes",
-                subtitle = if (cacheEntries.isEmpty()) "Cache is empty" else "${cacheEntries.size} entries",
+                title = if (cacheExpanded) {
+                    stringResource(R.string.settings_hide_list)
+                } else {
+                    stringResource(R.string.settings_show_list)
+                },
+                subtitle = if (cacheEntries.isEmpty()) {
+                    stringResource(R.string.settings_cache_empty)
+                } else {
+                    stringResource(R.string.settings_cache_entries, cacheEntries.size)
+                },
                 onClick = { cacheExpanded = !cacheExpanded },
                 enabled = cacheEntries.isNotEmpty(),
             )
@@ -265,20 +331,20 @@ fun SettingsScreen(
                 }
                 if (cacheEntries.size > 40) {
                     Text(
-                        text = "…and ${cacheEntries.size - 40} more",
+                        text = stringResource(R.string.settings_and_more, cacheEntries.size - 40),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
                 }
             }
             SettingsActionRow(
-                title = "Remove failed downloads",
+                title = stringResource(R.string.settings_remove_failed),
                 enabled = cacheEntries.any { it.status == CachedEpisodeStatus.Failed },
                 onClick = viewModel::removeFailedDownloads,
             )
             SettingsActionRow(
-                title = "Clear offline cache",
-                subtitle = "Deletes all locally stored episodes",
+                title = stringResource(R.string.settings_clear_cache),
+                subtitle = stringResource(R.string.settings_clear_cache_subtitle),
                 destructive = true,
                 enabled = cacheEntries.isNotEmpty(),
                 onClick = { clearCachePending = true },
@@ -286,7 +352,7 @@ fun SettingsScreen(
         }
 
         if (state.role == "Admin") {
-            SettingsSection(title = "Libraries") {
+            SettingsSection(title = stringResource(R.string.settings_libraries)) {
                 state.libraries.forEach { lib ->
                     Column(
                         modifier = Modifier
@@ -296,7 +362,7 @@ fun SettingsScreen(
                     ) {
                         Text(text = lib.name, fontWeight = FontWeight.SemiBold)
                         Text(
-                            text = "${lib.type} · ${lib.itemCount} items",
+                            text = stringResource(R.string.settings_items_meta, lib.type, lib.itemCount),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
@@ -308,7 +374,7 @@ fun SettingsScreen(
                                     scaleFocused = 1.05f,
                                 ),
                             ) {
-                                Text(text = "Scan")
+                                Text(text = stringResource(R.string.settings_scan))
                             }
                             TextButton(
                                 onClick = { libraryPendingDelete = lib },
@@ -317,41 +383,47 @@ fun SettingsScreen(
                                     scaleFocused = 1.05f,
                                 ),
                             ) {
-                                Text(text = "Delete", color = MaterialTheme.colorScheme.error)
+                                Text(
+                                    text = stringResource(R.string.settings_delete),
+                                    color = MaterialTheme.colorScheme.error,
+                                )
                             }
                         }
                     }
                 }
                 SettingsClickRow(
-                    title = "New library name",
-                    value = state.newLibraryName.ifBlank { "Not set" },
+                    title = stringResource(R.string.settings_new_library_name),
+                    value = state.newLibraryName.ifBlank { stringResource(R.string.settings_not_set) },
                     onClick = { editTarget = SettingsEditTarget.NewLibraryName },
                 )
                 SettingsChoiceRow(
-                    title = "Library type",
-                    options = listOf("Movies" to "Movies", "Series" to "Series"),
+                    title = stringResource(R.string.settings_library_type),
+                    options = listOf(
+                        "Movies" to stringResource(R.string.search_movies),
+                        "Series" to stringResource(R.string.search_series),
+                    ),
                     selectedId = state.newLibraryType,
                     onSelect = viewModel::onNewLibraryType,
                 )
                 SettingsClickRow(
-                    title = "Server path",
-                    value = state.newLibraryPath.ifBlank { "Not set" },
+                    title = stringResource(R.string.settings_server_path),
+                    value = state.newLibraryPath.ifBlank { stringResource(R.string.settings_not_set) },
                     onClick = { editTarget = SettingsEditTarget.NewLibraryPath },
                 )
                 SettingsActionRow(
-                    title = "Create library",
+                    title = stringResource(R.string.settings_create_library),
                     enabled = state.newLibraryName.isNotBlank() && state.newLibraryPath.isNotBlank(),
                     onClick = viewModel::createLibrary,
                 )
 
                 Text(
-                    text = "Recent jobs",
+                    text = stringResource(R.string.settings_jobs),
                     fontWeight = FontWeight.Bold,
                     modifier = Modifier.padding(top = 8.dp),
                 )
                 if (state.jobs.isEmpty()) {
                     Text(
-                        text = "No recent jobs",
+                        text = stringResource(R.string.settings_no_jobs),
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         style = MaterialTheme.typography.bodySmall,
                     )
@@ -370,7 +442,7 @@ fun SettingsScreen(
         state.error?.let { Text(text = it, color = MaterialTheme.colorScheme.error) }
 
         SettingsActionRow(
-            title = "Sign out",
+            title = stringResource(R.string.nav_sign_out),
             destructive = true,
             onClick = { viewModel.logout(onLoggedOut) },
         )
@@ -385,9 +457,9 @@ private fun CachedEpisodeRow(
     val statusLabel = when (entry.status) {
         CachedEpisodeStatus.Ready -> formatByteSize(entry.bytesTotal.coerceAtLeast(entry.bytesDownloaded))
         CachedEpisodeStatus.Downloading ->
-            "Downloading ${(entry.progress * 100).toInt()}%"
-        CachedEpisodeStatus.Queued -> "Queued"
-        CachedEpisodeStatus.Failed -> entry.errorMessage ?: "Failed"
+            stringResource(R.string.details_downloading) + " ${(entry.progress * 100).toInt()}%"
+        CachedEpisodeStatus.Queued -> stringResource(R.string.details_queued)
+        CachedEpisodeStatus.Failed -> entry.errorMessage ?: stringResource(R.string.details_failed)
     }
     SettingsActionRow(
         title = entry.displayTitle,
@@ -397,11 +469,17 @@ private fun CachedEpisodeRow(
     )
 }
 
+@Composable
 private fun formatCap(kbps: Int): String =
-    if (kbps <= 0) "Unlimited" else "$kbps kbps"
+    if (kbps <= 0) {
+        stringResource(R.string.settings_cap_unlimited)
+    } else {
+        stringResource(R.string.settings_cap_value, kbps)
+    }
 
+@Composable
 private fun formatCacheLimit(bytes: Long): String =
-    if (bytes <= 0L) "Unlimited" else formatByteSize(bytes)
+    if (bytes <= 0L) stringResource(R.string.settings_cap_unlimited) else formatByteSize(bytes)
 
 private fun bytesToGib(bytes: Long): Int {
     if (bytes <= 0L) return 0

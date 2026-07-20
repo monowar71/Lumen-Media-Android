@@ -43,7 +43,9 @@ class AuthViewModelTest {
                 externalCapKbps = 8000,
                 preferredMode = "auto",
                 librarySort = LibrarySort.Added,
+                libraryOrder = com.lumenmedia.android.core.preferences.LibraryOrder.Desc,
                 libraryInProgressFirst = false,
+                locale = "ru",
                 maxCacheBytes = 0L,
             ),
         )

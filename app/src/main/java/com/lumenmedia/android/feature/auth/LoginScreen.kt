@@ -26,12 +26,14 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.Role
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.FpBrandMark
 import com.lumenmedia.android.core.designsystem.FpButton
 import com.lumenmedia.android.core.designsystem.FpButtonVariant
@@ -90,24 +92,28 @@ fun LoginScreen(
             ) {
                 FpBrandMark(size = if (tv) 36.dp else 32.dp)
                 Text(
-                    "LumenMedia",
+                    stringResource(R.string.app_name),
                     style = MaterialTheme.typography.headlineMedium,
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.3).sp,
                 )
             }
             Text(
-                if (state.needsSetup == true) "Create admin account" else "Sign in to your server",
+                if (state.needsSetup == true) {
+                    stringResource(R.string.auth_subtitle_setup)
+                } else {
+                    stringResource(R.string.auth_subtitle_login)
+                },
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
             Spacer(Modifier.height(FpDimens.space4))
-            FpTextField(state.baseUrl, viewModel::onBaseUrlChange, "Server URL")
+            FpTextField(state.baseUrl, viewModel::onBaseUrlChange, stringResource(R.string.auth_server_url))
             if (state.needsSetup == true) {
-                FpTextField(state.serverName, viewModel::onServerNameChange, "Server name")
+                FpTextField(state.serverName, viewModel::onServerNameChange, stringResource(R.string.auth_server_name))
             }
-            FpTextField(state.username, viewModel::onUsernameChange, "Username")
-            FpTextField(state.password, viewModel::onPasswordChange, "Password", isPassword = true)
+            FpTextField(state.username, viewModel::onUsernameChange, stringResource(R.string.auth_username))
+            FpTextField(state.password, viewModel::onPasswordChange, stringResource(R.string.auth_password), isPassword = true)
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -127,7 +133,7 @@ fun LoginScreen(
                     ),
                 )
                 Text(
-                    text = "Remember username and password",
+                    text = stringResource(R.string.auth_remember),
                     style = MaterialTheme.typography.bodyMedium,
                     modifier = Modifier.padding(start = FpDimens.space4),
                 )
@@ -139,15 +145,15 @@ fun LoginScreen(
                 onClick = viewModel::submit,
                 enabled = !state.submitting,
                 label = when {
-                    state.submitting -> "Please wait…"
-                    state.needsSetup == true -> "Create & sign in"
-                    else -> "Sign in"
+                    state.submitting -> stringResource(R.string.auth_please_wait)
+                    state.needsSetup == true -> stringResource(R.string.auth_create_admin)
+                    else -> stringResource(R.string.auth_sign_in)
                 },
                 modifier = Modifier.fillMaxWidth(),
             )
             FpButton(
                 onClick = viewModel::refreshServerInfo,
-                label = "Check server",
+                label = stringResource(R.string.auth_check_server),
                 variant = FpButtonVariant.Secondary,
                 modifier = Modifier.fillMaxWidth(),
             )

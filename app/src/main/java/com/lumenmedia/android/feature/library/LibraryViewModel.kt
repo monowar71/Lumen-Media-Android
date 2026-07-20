@@ -9,6 +9,7 @@ import com.lumenmedia.android.core.model.MediaItemSummary
 import com.lumenmedia.android.core.model.PagedResult
 import com.lumenmedia.android.core.network.LumenMediaRepository
 import com.lumenmedia.android.core.network.toUserMessage
+import com.lumenmedia.android.core.preferences.LibraryOrder
 import com.lumenmedia.android.core.preferences.LibrarySort
 import com.lumenmedia.android.core.preferences.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -34,6 +35,11 @@ data class LibraryUiState(
     val baseUrl: String = "",
     val query: String = "",
     val sort: LibrarySort = LibrarySort.Added,
+    val order: LibraryOrder = LibraryOrder.Desc,
+    val genre: String? = null,
+    val year: String = "",
+    val watchedFilter: WatchedFilter = WatchedFilter.All,
+    val filtersOpen: Boolean = false,
     val inProgressFirst: Boolean = false,
     val page: Int = 1,
     val hasMore: Boolean = false,
@@ -58,7 +64,11 @@ class LibraryViewModel @Inject constructor(
         viewModelScope.launch {
             val settings = settingsRepository.settings.first()
             _state.update {
-                it.copy(sort = settings.librarySort, inProgressFirst = settings.libraryInProgressFirst)
+                it.copy(
+                    sort = settings.librarySort,
+                    order = settings.libraryOrder,
+                    inProgressFirst = settings.libraryInProgressFirst,
+                )
             }
             val initialId = checkNotNull(savedStateHandle.get<String>("libraryId"))
             savedStateHandle.getStateFlow("libraryId", initialId)
@@ -69,7 +79,6 @@ class LibraryViewModel @Inject constructor(
     fun onQueryChange(q: String) {
         if (q == _state.value.query) return
         _state.update { it.copy(query = q) }
-        // Debounce so typing does not fire one request per keystroke.
         queryJob?.cancel()
         queryJob = viewModelScope.launch {
             delay(300)
@@ -79,11 +88,49 @@ class LibraryViewModel @Inject constructor(
 
     fun onSortChange(sort: LibrarySort) {
         if (sort == _state.value.sort) return
-        _state.update { it.copy(sort = sort) }
+        val order = SettingsRepository.defaultOrderFor(sort)
+        _state.update { it.copy(sort = sort, order = order) }
         viewModelScope.launch {
             settingsRepository.setLibrarySort(sort)
+            settingsRepository.setLibraryOrder(order)
             currentLibraryId()?.let { load(it) }
         }
+    }
+
+    fun onOrderChange(order: LibraryOrder) {
+        if (order == _state.value.order) return
+        _state.update { it.copy(order = order) }
+        viewModelScope.launch {
+            settingsRepository.setLibraryOrder(order)
+            currentLibraryId()?.let { load(it) }
+        }
+    }
+
+    fun onGenreChange(genre: String?) {
+        if (genre == _state.value.genre) return
+        _state.update { it.copy(genre = genre) }
+        currentLibraryId()?.let { id -> viewModelScope.launch { load(id) } }
+    }
+
+    fun onYearChange(year: String) {
+        val cleaned = year.filter { it.isDigit() }.take(4)
+        if (cleaned == _state.value.year) return
+        _state.update { it.copy(year = cleaned) }
+        queryJob?.cancel()
+        queryJob = viewModelScope.launch {
+            delay(300)
+            currentLibraryId()?.let { load(it) }
+        }
+    }
+
+    fun onWatchedFilterChange(filter: WatchedFilter) {
+        if (filter == _state.value.watchedFilter) return
+        _state.update { it.copy(watchedFilter = filter) }
+        currentLibraryId()?.let { id -> viewModelScope.launch { load(id) } }
+    }
+
+    fun toggleFiltersOpen() {
+        _state.update { it.copy(filtersOpen = !it.filtersOpen) }
     }
 
     fun onInProgressFirstChange(enabled: Boolean) {
@@ -103,24 +150,14 @@ class LibraryViewModel @Inject constructor(
         if (current.loading || current.loadingMore || !current.hasMore) return
         val libraryId = currentLibraryId() ?: return
         val nextPage = current.page + 1
-        val query = current.query.ifBlank { null }
         _state.update { it.copy(loadingMore = true) }
         loadMoreJob = viewModelScope.launch {
             runCatching {
-                repository.libraryItems(
-                    libraryId,
-                    page = nextPage,
-                    sort = current.sort.apiSort,
-                    order = current.sort.apiOrder,
-                    q = query,
-                )
+                fetchPage(libraryId, nextPage, current)
             }.onSuccess { result ->
                 _state.update {
                     it.copy(
                         loadingMore = false,
-                        // distinctBy: items added on the server between page
-                        // fetches shift the pages, and a repeated id would
-                        // crash LazyVerticalGrid (duplicate keys).
                         items = orderItems(
                             (it.items + result.items).distinctBy { item -> item.id },
                             it.inProgressFirst,
@@ -131,7 +168,6 @@ class LibraryViewModel @Inject constructor(
                 }
             }.onFailure { err ->
                 if (err is CancellationException) throw err
-                // A failed page append is not fatal: keep what we have and allow retry.
                 _state.update { it.copy(loadingMore = false) }
             }
         }
@@ -145,17 +181,10 @@ class LibraryViewModel @Inject constructor(
         val baseUrl = settingsRepository.settings.first().baseUrl
         val current = _state.value
         runCatching {
-            // Reuse the shared catalog; only hit the network when it is cold.
             if (libraryCatalog.libraries.value.isEmpty()) libraryCatalog.refresh().getOrThrow()
             val libraries = libraryCatalog.libraries.value
             val library = libraries.find { it.id == libraryId }
-            val page = repository.libraryItems(
-                libraryId,
-                page = 1,
-                sort = current.sort.apiSort,
-                order = current.sort.apiOrder,
-                q = current.query.ifBlank { null },
-            )
+            val page = fetchPage(libraryId, 1, current)
             Triple(libraries, library, page)
         }.onSuccess { (libraries, library, result) ->
             _state.update {
@@ -175,15 +204,29 @@ class LibraryViewModel @Inject constructor(
         }
     }
 
+    private suspend fun fetchPage(
+        libraryId: String,
+        page: Int,
+        current: LibraryUiState,
+    ): PagedResult<MediaItemSummary> =
+        repository.libraryItems(
+            libraryId,
+            page = page,
+            sort = current.sort.apiSort,
+            order = current.order.apiOrder,
+            watched = current.watchedFilter.toApi(),
+            q = current.query.ifBlank { null },
+            genre = current.genre,
+            year = current.year.toIntOrNull(),
+        )
+
     private fun hasMore(result: PagedResult<MediaItemSummary>): Boolean =
         if (result.totalPages > 0) {
             result.page < result.totalPages
         } else {
-            // Server did not report totals — infer from a full page.
             result.items.size >= result.pageSize
         }
 
-    /** Stable partition: started-but-unfinished items bubble to the top of the grid. */
     private fun orderItems(items: List<MediaItemSummary>, inProgressFirst: Boolean): List<MediaItemSummary> {
         if (!inProgressFirst) return items
         val (started, rest) = items.partition { item ->

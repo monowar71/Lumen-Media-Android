@@ -1,4 +1,219 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">LumenMedia</string>
+
+    <!-- common / nav -->
+    <string name="nav_home">Home</string>
+    <string name="nav_settings">Settings</string>
+    <string name="nav_search">Search</string>
+    <string name="nav_browse">Browse</string>
+    <string name="nav_manage">Manage</string>
+    <string name="nav_libraries">Libraries</string>
+    <string name="nav_no_libraries">No libraries yet</string>
+    <string name="nav_sign_out">Sign out</string>
+
+    <!-- common / home -->
+    <string name="home_title">Home</string>
+    <string name="home_empty_title">Nothing here yet</string>
+    <string name="home_empty_body">Add media to your libraries to get started.</string>
+    <string name="home_featured">Featured</string>
+    <string name="home_play">Play</string>
+    <string name="home_resume">Resume</string>
+    <string name="home_details">More info</string>
+
+    <!-- common / search -->
+    <string name="search_title">Search</string>
+    <string name="search_placeholder">Search movies &amp; shows…</string>
+    <string name="search_query">Query</string>
+    <string name="search_hint_tv">OK / tap to edit</string>
+    <string name="search_hint_tv_subtitle">Opens keyboard only when editing</string>
+    <string name="search_empty_title">Find something to watch</string>
+    <string name="search_empty_body">Search movies, series, and episodes.</string>
+    <string name="search_no_results">No results</string>
+    <string name="search_no_results_body">Try another title or spelling.</string>
+    <string name="search_movies">Movies</string>
+    <string name="search_series">Series</string>
+    <string name="search_episodes">Episodes</string>
+    <string name="search_episode_fallback">Episode</string>
+
+    <!-- common / state -->
+    <string name="state_something_wrong">Something went wrong</string>
+    <string name="state_try_again">Try again</string>
+    <string name="state_loading">Loading…</string>
+    <string name="state_restoring_session">Restoring session…</string>
+    <string name="errors_generic">Something went wrong</string>
+
+    <!-- common / track languages -->
+    <string name="lang_eng">English</string>
+    <string name="lang_en">English</string>
+    <string name="lang_rus">Russian</string>
+    <string name="lang_ru">Russian</string>
+    <string name="lang_und">Unknown</string>
+    <string name="lang_unknown">Unknown</string>
+
+    <!-- auth -->
+    <string name="auth_subtitle_setup">Create the first admin account</string>
+    <string name="auth_subtitle_login">Sign in to your server</string>
+    <string name="auth_server_url">Server URL</string>
+    <string name="auth_server_name">Server name</string>
+    <string name="auth_username">Username</string>
+    <string name="auth_password">Password</string>
+    <string name="auth_remember">Remember username and password</string>
+    <string name="auth_sign_in">Sign in</string>
+    <string name="auth_create_admin">Create admin &amp; sign in</string>
+    <string name="auth_please_wait">Please wait…</string>
+    <string name="auth_check_server">Check server</string>
+
+    <!-- library -->
+    <string name="library_title">Library</string>
+    <string name="library_items_count">%d titles</string>
+    <string name="library_filter_placeholder">Filter…</string>
+    <string name="library_genre">Genre</string>
+    <string name="library_all_genres">All genres</string>
+    <string name="library_year">Year</string>
+    <string name="library_sort_by">Sort by</string>
+    <string name="library_sort_title">Title</string>
+    <string name="library_sort_year">Year</string>
+    <string name="library_sort_added">Date added</string>
+    <string name="library_sort_rating">Rating</string>
+    <string name="library_sort_runtime">Runtime</string>
+    <string name="library_order_asc">↑ Asc</string>
+    <string name="library_order_desc">↓ Desc</string>
+    <string name="library_filters">Filters</string>
+    <string name="library_sort_and_filters">Sort &amp; filters</string>
+    <string name="library_sort_and_filters_count">Sort &amp; filters (%d)</string>
+    <string name="library_done">Done</string>
+    <string name="library_clear_filters">Clear filters</string>
+    <string name="library_all">All</string>
+    <string name="library_unwatched">Unwatched</string>
+    <string name="library_watched">Watched</string>
+    <string name="library_watched_filter">Watched filter</string>
+    <string name="library_in_progress">In progress</string>
+    <string name="library_no_match">No items match your filters</string>
+    <string name="library_empty_title">Nothing here</string>
+    <string name="library_empty_body">Try another library or scan media files.</string>
+    <string name="library_genre_action">Action</string>
+    <string name="library_genre_adventure">Adventure</string>
+    <string name="library_genre_animation">Animation</string>
+    <string name="library_genre_comedy">Comedy</string>
+    <string name="library_genre_crime">Crime</string>
+    <string name="library_genre_documentary">Documentary</string>
+    <string name="library_genre_drama">Drama</string>
+    <string name="library_genre_fantasy">Fantasy</string>
+    <string name="library_genre_horror">Horror</string>
+    <string name="library_genre_romance">Romance</string>
+    <string name="library_genre_scifi">Sci-Fi</string>
+    <string name="library_genre_thriller">Thriller</string>
+
+    <!-- details -->
+    <string name="details_play">Play</string>
+    <string name="details_resume">Resume %1$s</string>
+    <string name="details_resume_short">Resume</string>
+    <string name="details_play_from_start">Play from start</string>
+    <string name="details_play_next_episode">Play next episode</string>
+    <string name="details_cast">Cast</string>
+    <string name="details_trailer">Trailer</string>
+    <string name="details_download">Download</string>
+    <string name="details_seasons_count">%d seasons</string>
+    <string name="details_season">Season %d</string>
+    <string name="details_episodes">Episodes</string>
+    <string name="details_watched">Watched</string>
+    <string name="details_mark_watched">Mark as watched</string>
+    <string name="details_mark_unwatched">Mark as unwatched</string>
+    <string name="details_mark_season_watched">Mark season watched</string>
+    <string name="details_mark_season_unwatched">Mark season unwatched</string>
+    <string name="details_episode_n">Episode %d</string>
+    <string name="details_download_episode">Download</string>
+    <string name="details_download_season">Download season</string>
+    <string name="details_cancel_download">Cancel download</string>
+    <string name="details_remove_download">Remove download</string>
+    <string name="details_downloading">Downloading…</string>
+    <string name="details_offline_ready">Downloaded</string>
+    <string name="details_queued">Queued</string>
+    <string name="details_failed">Failed</string>
+
+    <!-- player -->
+    <string name="player_back">Back</string>
+    <string name="player_retry">Retry</string>
+    <string name="player_play">Play</string>
+    <string name="player_pause">Pause</string>
+    <string name="player_audio">Audio</string>
+    <string name="player_subtitles">Subtitles</string>
+    <string name="player_quality">Quality</string>
+    <string name="player_off">Off</string>
+    <string name="player_audio_fallback">Audio</string>
+    <string name="player_subtitle_fallback">Subtitle</string>
+    <string name="player_channels">%dch</string>
+    <string name="player_buffering">Buffering…</string>
+    <string name="player_seeking">Seeking…</string>
+    <string name="player_loading">Loading…</string>
+    <string name="player_tv_seek_hint">← → seek · OK confirm</string>
+    <string name="player_tv_seek_bar_hint">↓ seek bar</string>
+    <string name="player_failed">Playback failed</string>
+    <string name="player_seek_failed">Could not seek</string>
+    <string name="player_audio_failed">Could not change audio track</string>
+    <string name="player_auto">Auto</string>
+
+    <!-- settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_signed_in_as">Signed in as %1$s (%2$s)</string>
+    <string name="settings_general">General</string>
+    <string name="settings_server_url">Server URL</string>
+    <string name="settings_tap_to_edit">OK / tap to edit</string>
+    <string name="settings_language_title">Interface language</string>
+    <string name="settings_language_subtitle">Language of the LumenMedia UI</string>
+    <string name="settings_language_ru">Русский</string>
+    <string name="settings_language_en">English</string>
+    <string name="settings_playback">Playback</string>
+    <string name="settings_lan_cap">LAN bandwidth cap</string>
+    <string name="settings_lan_cap_subtitle">Used on Wi‑Fi / Ethernet</string>
+    <string name="settings_external_cap">External / mobile cap</string>
+    <string name="settings_external_cap_subtitle">Used on cellular / remote access</string>
+    <string name="settings_preferred_mode">Preferred quality mode</string>
+    <string name="settings_mode_auto">Auto</string>
+    <string name="settings_mode_manual">Manual</string>
+    <string name="settings_cap_unlimited">Unlimited</string>
+    <string name="settings_cap_kbps">kbps (0 = unlimited)</string>
+    <string name="settings_offline">Offline cache</string>
+    <string name="settings_storage_used">Storage used</string>
+    <string name="settings_storage_episodes">%1$s · %2$d episodes</string>
+    <string name="settings_limit_label">Limit: %1$s</string>
+    <string name="settings_downloading_count"> · %d downloading</string>
+    <string name="settings_max_cache">Max cache size</string>
+    <string name="settings_max_cache_subtitle">Oldest episodes are removed when full</string>
+    <string name="settings_max_cache_title">Max offline cache</string>
+    <string name="settings_max_cache_label">GiB (0 = unlimited)</string>
+    <string name="settings_cached_episodes">Cached episodes</string>
+    <string name="settings_cache_empty">Cache is empty</string>
+    <string name="settings_cache_entries">%d entries</string>
+    <string name="settings_hide_list">Hide list</string>
+    <string name="settings_show_list">Show list</string>
+    <string name="settings_remove_failed">Remove failed downloads</string>
+    <string name="settings_clear_cache">Clear offline cache</string>
+    <string name="settings_clear_cache_subtitle">Deletes all locally stored episodes</string>
+    <string name="settings_clear_cache_title">Clear offline cache?</string>
+    <string name="settings_clear_cache_body">Deletes all downloaded episodes (%1$s, %2$d files).</string>
+    <string name="settings_clear">Clear</string>
+    <string name="settings_cancel">Cancel</string>
+    <string name="settings_delete">Delete</string>
+    <string name="settings_libraries">Libraries</string>
+    <string name="settings_delete_library_title">Delete library?</string>
+    <string name="settings_delete_library_body">\"%1$s\" (%2$d items) will be removed from the server. Media files on disk are not touched.</string>
+    <string name="settings_scan">Scan</string>
+    <string name="settings_add_library">Add library</string>
+    <string name="settings_library_name">Library name</string>
+    <string name="settings_library_name_label">Name</string>
+    <string name="settings_server_path">Server path</string>
+    <string name="settings_create_scan">Create &amp; scan</string>
+    <string name="settings_jobs">Recent jobs</string>
+    <string name="settings_no_jobs">No recent jobs</string>
+    <string name="settings_account">Account</string>
+    <string name="settings_no_limit">No limit</string>
+    <string name="settings_not_set">Not set</string>
+    <string name="settings_library_type">Library type</string>
+    <string name="settings_new_library_name">New library name</string>
+    <string name="settings_create_library">Create library</string>
+    <string name="settings_and_more">…and %d more</string>
+    <string name="settings_items_meta">%1$s · %2$d items</string>
+    <string name="settings_cap_value">%d kbps</string>
 </resources>

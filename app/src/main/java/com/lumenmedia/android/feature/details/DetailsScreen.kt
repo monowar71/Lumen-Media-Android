@@ -33,11 +33,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusProperties
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.focusRestorer
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.runtime.remember
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +50,7 @@ import androidx.compose.ui.unit.dp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import coil.compose.AsyncImage
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.ErrorState
 import com.lumenmedia.android.core.designsystem.FpBadge
 import com.lumenmedia.android.core.designsystem.FpButton
@@ -106,15 +112,27 @@ fun DetailsScreen(
                     poster = movie.artwork.poster,
                     progress = progress,
                     baseUrl = state.baseUrl,
-                    playLabel = if (canResume) "Resume" else "Play",
+                    playLabel = if (canResume) {
+                        stringResource(R.string.details_resume_short)
+                    } else {
+                        stringResource(R.string.details_play)
+                    },
                     onPlay = { onPlay(movie.id, if (canResume) resume else 0L, false) },
-                    playFromStartLabel = if (canResume) "From start" else null,
+                    playFromStartLabel = if (canResume) {
+                        stringResource(R.string.details_play_from_start)
+                    } else {
+                        null
+                    },
                     onPlayFromStart = if (canResume) {
                         { onPlay(movie.id, 0L, false) }
                     } else {
                         null
                     },
-                    watchedLabel = if (watched) "Mark unwatched" else "Mark watched",
+                    watchedLabel = if (watched) {
+                        stringResource(R.string.details_mark_unwatched)
+                    } else {
+                        stringResource(R.string.details_mark_watched)
+                    },
                     onToggleWatched = viewModel::toggleMovieWatched,
                     watchedBusy = state.markingWatched,
                     trailerUrl = movie.trailerUrl,
@@ -144,6 +162,7 @@ fun DetailsScreen(
         val canResume = resume > 0L
         val seriesWatched = DetailsViewModel.isSeriesWatched(series)
         val seasonWatched = DetailsViewModel.isSeasonWatched(state.episodes)
+        val seasonsFocusRequester = remember { FocusRequester() }
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -154,7 +173,7 @@ fun DetailsScreen(
                     title = series.title,
                     subtitle = listOfNotNull(
                         series.year?.toString(),
-                        "${series.seasonCount} seasons",
+                        stringResource(R.string.details_seasons_count, series.seasonCount),
                     ).joinToString(" · "),
                     overview = series.overview,
                     backdrop = series.artwork.backdrop ?: series.artwork.poster,
@@ -163,25 +182,40 @@ fun DetailsScreen(
                     baseUrl = state.baseUrl,
                     playLabel = when {
                         playTarget == null -> null
-                        canResume -> "Resume"
-                        else -> "Play"
+                        canResume -> stringResource(R.string.details_resume_short)
+                        else -> stringResource(R.string.details_play)
                     },
                     onPlay = playTarget?.let { ep ->
                         { onPlay(ep.id, resume, true) }
                     },
-                    watchedLabel = if (seriesWatched) "Mark unwatched" else "Mark watched",
+                    watchedLabel = if (seriesWatched) {
+                        stringResource(R.string.details_mark_unwatched)
+                    } else {
+                        stringResource(R.string.details_mark_watched)
+                    },
                     onToggleWatched = viewModel::toggleSeriesWatched,
                     watchedBusy = state.markingWatched,
                     trailerUrl = series.trailerUrl,
                     tv = tv,
                     focusableHeader = tv && playTarget == null && series.trailerUrl == null,
+                    // Force D-pad Down from CTA into season chips (otherwise LazyColumn
+                    // focus search jumps straight to episodes / season actions).
+                    actionsDownFocus = if (tv && state.seasons.isNotEmpty()) {
+                        seasonsFocusRequester
+                    } else {
+                        null
+                    },
                 )
+            }
+            // Own LazyColumn item: keeps season chips a distinct focus band.
+            item(key = "seasons") {
                 Spacer(modifier = Modifier.height(FpDimens.space12))
                 SeasonPicker(
                     seasons = state.seasons.map { it.id to it.name },
                     selectedId = state.selectedSeasonId,
                     onSelect = viewModel::selectSeason,
                     tv = tv,
+                    entryFocusRequester = if (tv) seasonsFocusRequester else null,
                 )
                 if (state.episodes.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(FpDimens.space8))
@@ -192,7 +226,11 @@ fun DetailsScreen(
                         FpButton(
                             onClick = viewModel::toggleSeasonWatched,
                             enabled = !state.markingWatched,
-                            label = if (seasonWatched) "Unwatch season" else "Watch season",
+                            label = if (seasonWatched) {
+                                stringResource(R.string.details_mark_season_unwatched)
+                            } else {
+                                stringResource(R.string.details_mark_season_watched)
+                            },
                             variant = FpButtonVariant.Secondary,
                             compact = true,
                         )
@@ -200,7 +238,12 @@ fun DetailsScreen(
                         FpButton(
                             onClick = viewModel::downloadSeason,
                             enabled = seasonOffline == SeasonOfflineAction.Download,
-                            label = seasonOffline.label,
+                            label = when (seasonOffline) {
+                                SeasonOfflineAction.Download ->
+                                    stringResource(R.string.details_download_season)
+                                SeasonOfflineAction.None ->
+                                    stringResource(R.string.details_offline_ready)
+                            },
                             variant = FpButtonVariant.Secondary,
                             compact = true,
                         )
@@ -242,22 +285,33 @@ private fun SeasonPicker(
     selectedId: String?,
     onSelect: (String) -> Unit,
     tv: Boolean,
+    entryFocusRequester: FocusRequester? = null,
 ) {
     if (seasons.isEmpty()) return
-    LazyRow(
+    val entryId = selectedId ?: seasons.firstOrNull()?.first
+    // Non-lazy Row: nested LazyRow inside LazyColumn is skipped by D-pad Down.
+    Row(
         horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
-        contentPadding = PaddingValues(
-            horizontal = if (tv) FpDimens.focusHalo else FpDimens.contentPadHPhone,
-        ),
         modifier = Modifier
             .fillMaxWidth()
-            .then(if (tv) Modifier.focusRestorer() else Modifier),
+            .padding(
+                horizontal = if (tv) FpDimens.focusBorder else FpDimens.contentPadHPhone,
+                vertical = if (tv) FpDimens.focusBorder else 0.dp,
+            )
+            .then(if (tv) Modifier.focusRestorer() else Modifier)
+            .horizontalScroll(rememberScrollState()),
     ) {
-        items(seasons, key = { it.first }) { (id, name) ->
+        seasons.forEach { (id, name) ->
             FpChip(
                 label = name,
                 selected = id == selectedId,
                 onClick = { onSelect(id) },
+                scaleFocused = 1f,
+                modifier = if (entryFocusRequester != null && id == entryId) {
+                    Modifier.focusRequester(entryFocusRequester)
+                } else {
+                    Modifier
+                },
             )
         }
     }
@@ -288,6 +342,8 @@ private fun EpisodeRow(
         runtimeMs = episode.runtimeMs,
     )
     val shape = RoundedCornerShape(FpDimens.radiusMd)
+    val episodeTitle = episode.title
+        ?: stringResource(R.string.details_episode_n, episode.episodeNumber)
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -326,8 +382,7 @@ private fun EpisodeRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "S${episode.seasonNumber}E${episode.episodeNumber}  ·  " +
-                        (episode.title ?: "Episode ${episode.episodeNumber}"),
+                    text = "S${episode.seasonNumber}E${episode.episodeNumber}  ·  $episodeTitle",
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -337,7 +392,7 @@ private fun EpisodeRow(
                 Row(horizontalArrangement = Arrangement.spacedBy(FpDimens.space6)) {
                     OfflineBadge(offline = offline)
                     if (watched) {
-                        FpBadge(label = "Watched", accent = true)
+                        FpBadge(label = stringResource(R.string.details_watched), accent = true)
                     }
                 }
             }
@@ -358,26 +413,34 @@ private fun EpisodeRow(
                 FpButton(
                     onClick = onToggleWatched,
                     enabled = !watchedBusy,
-                    label = if (watched) "Unwatch" else "Watched",
+                    label = if (watched) {
+                        stringResource(R.string.details_mark_unwatched)
+                    } else {
+                        stringResource(R.string.details_watched)
+                    },
                     variant = FpButtonVariant.Ghost,
                     compact = true,
                 )
                 when (offline?.status) {
                     CachedEpisodeStatus.Ready -> FpButton(
                         onClick = onRemoveDownload,
-                        label = "Remove",
+                        label = stringResource(R.string.details_remove_download),
                         variant = FpButtonVariant.Ghost,
                         compact = true,
                     )
                     CachedEpisodeStatus.Queued, CachedEpisodeStatus.Downloading -> FpButton(
                         onClick = onCancelDownload,
-                        label = "Cancel",
+                        label = stringResource(R.string.details_cancel_download),
                         variant = FpButtonVariant.Ghost,
                         compact = true,
                     )
                     CachedEpisodeStatus.Failed, null -> FpButton(
                         onClick = onDownload,
-                        label = if (offline?.status == CachedEpisodeStatus.Failed) "Retry" else "Download",
+                        label = if (offline?.status == CachedEpisodeStatus.Failed) {
+                            stringResource(R.string.state_try_again)
+                        } else {
+                            stringResource(R.string.details_download)
+                        },
                         variant = FpButtonVariant.Ghost,
                         compact = true,
                     )
@@ -390,10 +453,11 @@ private fun EpisodeRow(
 @Composable
 private fun OfflineBadge(offline: OfflineEpisodeState?) {
     val label = when (offline?.status) {
-        CachedEpisodeStatus.Ready -> "Saved"
-        CachedEpisodeStatus.Downloading -> "↓ ${(offline.progress * 100).toInt()}%"
-        CachedEpisodeStatus.Queued -> "Queued"
-        CachedEpisodeStatus.Failed -> "Failed"
+        CachedEpisodeStatus.Ready -> stringResource(R.string.details_offline_ready)
+        CachedEpisodeStatus.Downloading ->
+            stringResource(R.string.details_downloading) + " ${(offline.progress * 100).toInt()}%"
+        CachedEpisodeStatus.Queued -> stringResource(R.string.details_queued)
+        CachedEpisodeStatus.Failed -> stringResource(R.string.details_failed)
         null -> return
     }
     FpBadge(
@@ -402,9 +466,9 @@ private fun OfflineBadge(offline: OfflineEpisodeState?) {
     )
 }
 
-private enum class SeasonOfflineAction(val label: String) {
-    Download("Download season"),
-    None("Season saved"),
+private enum class SeasonOfflineAction {
+    Download,
+    None,
 }
 
 private fun seasonOfflineLabel(
@@ -435,6 +499,8 @@ private fun DetailScaffold(
     onToggleWatched: (() -> Unit)? = null,
     watchedBusy: Boolean = false,
     focusableHeader: Boolean = false,
+    /** When set (TV), D-pad Down from the action row lands on season chips. */
+    actionsDownFocus: FocusRequester? = null,
 ) {
     val context = LocalContext.current
     val openTrailer: (() -> Unit)? = trailerUrl?.let { url ->
@@ -593,6 +659,13 @@ private fun DetailScaffold(
                     modifier = Modifier
                         .padding(top = FpDimens.space14)
                         .then(
+                            if (actionsDownFocus != null) {
+                                Modifier.focusProperties { down = actionsDownFocus }
+                            } else {
+                                Modifier
+                            },
+                        )
+                        .then(
                             if (!tv) Modifier.horizontalScroll(rememberScrollState()) else Modifier,
                         ),
                     horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
@@ -618,7 +691,7 @@ private fun DetailScaffold(
                     if (openTrailer != null) {
                         FpButton(
                             onClick = openTrailer,
-                            label = "Trailer",
+                            label = stringResource(R.string.details_trailer),
                             variant = FpButtonVariant.Secondary,
                         )
                     }
@@ -640,7 +713,7 @@ private fun CastSection(
             .fillMaxWidth()
             .padding(horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone),
     ) {
-        FpSectionTitle("Cast")
+        FpSectionTitle(stringResource(R.string.details_cast))
         LazyRow(
             contentPadding = PaddingValues(horizontal = if (tv) FpDimens.focusHalo else 0.dp),
             horizontalArrangement = Arrangement.spacedBy(if (tv) FpDimens.space14 else FpDimens.space12),

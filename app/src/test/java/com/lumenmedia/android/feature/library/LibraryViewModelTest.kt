@@ -45,11 +45,14 @@ class LibraryViewModelTest {
                 externalCapKbps = 0,
                 preferredMode = "auto",
                 librarySort = LibrarySort.Added,
+                libraryOrder = com.lumenmedia.android.core.preferences.LibraryOrder.Desc,
                 libraryInProgressFirst = false,
+                locale = "ru",
                 maxCacheBytes = 0L,
             ),
         )
         coJustRun { setLibrarySort(any()) }
+        coJustRun { setLibraryOrder(any()) }
         coJustRun { setLibraryInProgressFirst(any()) }
     }
     private val libraryCatalog = mockk<LibraryCatalog> {
@@ -198,14 +201,58 @@ class LibraryViewModelTest {
         val viewModel = createViewModel()
         advanceUntilIdle()
 
-        viewModel.onSortChange(LibrarySort.Name)
+        viewModel.onSortChange(LibrarySort.Title)
         advanceUntilIdle()
 
-        assertThat(viewModel.state.value.sort).isEqualTo(LibrarySort.Name)
+        assertThat(viewModel.state.value.sort).isEqualTo(LibrarySort.Title)
         assertThat(viewModel.state.value.items).hasSize(10)
-        coVerify(exactly = 1) { settingsRepository.setLibrarySort(LibrarySort.Name) }
+        coVerify(exactly = 1) { settingsRepository.setLibrarySort(LibrarySort.Title) }
         coVerify(exactly = 1) {
             repository.libraryItems("lib1", page = 1, sort = "title", order = "asc", q = null)
+        }
+    }
+
+    @Test
+    fun genreAndWatchedFilters_reloadWithQueryParams() = runTest(dispatcher) {
+        coEvery { repository.libraryItems("lib1", page = 1, q = null) } returns pagedResult(1, 50, 1)
+        coEvery {
+            repository.libraryItems(
+                "lib1",
+                page = 1,
+                sort = "added",
+                order = "desc",
+                watched = true,
+                q = null,
+                genre = "Drama",
+                year = 2020,
+            )
+        } returns pagedResult(1, 5, 1)
+
+        val viewModel = createViewModel()
+        advanceUntilIdle()
+
+        viewModel.onGenreChange("Drama")
+        advanceUntilIdle()
+        viewModel.onWatchedFilterChange(WatchedFilter.Watched)
+        advanceUntilIdle()
+        viewModel.onYearChange("2020")
+        advanceUntilIdle()
+
+        assertThat(viewModel.state.value.genre).isEqualTo("Drama")
+        assertThat(viewModel.state.value.watchedFilter).isEqualTo(WatchedFilter.Watched)
+        assertThat(viewModel.state.value.year).isEqualTo("2020")
+        assertThat(viewModel.state.value.items).hasSize(5)
+        coVerify(atLeast = 1) {
+            repository.libraryItems(
+                "lib1",
+                page = 1,
+                sort = "added",
+                order = "desc",
+                watched = true,
+                q = null,
+                genre = "Drama",
+                year = 2020,
+            )
         }
     }
 

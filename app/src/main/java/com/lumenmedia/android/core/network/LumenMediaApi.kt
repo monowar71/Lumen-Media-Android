@@ -78,6 +78,8 @@ interface LumenMediaApi {
         @Query("order") order: String? = "desc",
         @Query("watched") watched: Boolean? = null,
         @Query("q") q: String? = null,
+        @Query("genre") genre: String? = null,
+        @Query("year") year: Int? = null,
     ): PagedResult<MediaItemSummary>
 
     @GET("api/v1/items/{id}")

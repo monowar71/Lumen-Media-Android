@@ -8,10 +8,10 @@
 ## Features
 
 - Phone/tablet Material 3 UI and Android TV leanback-friendly navigation
-- Home, library, details, search, settings (including admin library ops)
-- ExoPlayer DirectPlay / HLS with quality & track selection
+- Home, library (sort/filters), details, search, settings (including admin library ops)
+- ExoPlayer DirectPlay / HLS with quality, audio, and subtitle selection
 - Offline episode cache via server download API + Room
-- Design tokens aligned with the web client (`#0b1f1a` / mint `#3ecf9a`)
+- UI locale `ru`/`en`; design tokens aligned with the web client (`#0b1f1a` / mint `#3ecf9a`)
 
 ## Requirements
 

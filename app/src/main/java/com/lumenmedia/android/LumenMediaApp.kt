@@ -5,17 +5,22 @@ import coil.ImageLoader
 import coil.ImageLoaderFactory
 import com.lumenmedia.android.core.offline.OfflineDownloadManager
 import com.lumenmedia.android.core.preferences.SessionStore
+import com.lumenmedia.android.core.preferences.SettingsRepository
+import com.lumenmedia.android.core.util.LocaleHelper
 import com.lumenmedia.android.di.ApplicationScope
 import com.lumenmedia.android.di.ImageLoaderEntryPoint
 import dagger.hilt.android.EntryPointAccessors
 import dagger.hilt.android.HiltAndroidApp
 import javax.inject.Inject
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
 class LumenMediaApp : Application(), ImageLoaderFactory {
     @Inject lateinit var sessionStore: SessionStore
+
+    @Inject lateinit var settingsRepository: SettingsRepository
 
     /** Eagerly created so interrupted downloads resume after process start. */
     @Inject lateinit var offlineDownloadManager: OfflineDownloadManager
@@ -30,6 +35,10 @@ class LumenMediaApp : Application(), ImageLoaderFactory {
         // EncryptedSharedPreferences creation is slow (MasterKey); pay the cost
         // off the main thread before the first request needs a token.
         appScope.launch { sessionStore.warmUp() }
+        appScope.launch {
+            val locale = settingsRepository.settings.first().locale
+            LocaleHelper.apply(locale)
+        }
     }
 
     override fun newImageLoader(): ImageLoader {

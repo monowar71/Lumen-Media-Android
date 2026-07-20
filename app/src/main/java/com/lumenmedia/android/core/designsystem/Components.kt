@@ -20,12 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.PlayArrow
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
-import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -45,6 +42,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
@@ -82,7 +80,7 @@ fun ErrorState(message: String, onRetry: (() -> Unit)? = null) {
         )
         if (onRetry != null) {
             Spacer(Modifier.height(FpDimens.space16))
-            FpButton(onClick = onRetry, label = "Retry")
+            FpButton(onClick = onRetry, label = stringResource(R.string.state_try_again))
         }
     }
 }
@@ -188,8 +186,11 @@ fun FpChip(
     selected: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    /** LazyRow season pickers must stay at 1f — scale breaks D-pad neighbor search. */
+    scaleFocused: Float = 1.05f,
 ) {
     val shape = RoundedCornerShape(FpDimens.radiusPill)
+    val tv = isTvDevice()
     Text(
         text = label,
         style = MaterialTheme.typography.labelLarge,
@@ -200,7 +201,14 @@ fun FpChip(
             MaterialTheme.colorScheme.onSurfaceVariant
         },
         modifier = modifier
-            .tvFocusable(onClick = onClick, scaleFocused = 1.05f, shape = shape)
+            .tvFocusable(
+                onClick = onClick,
+                // No scale in horizontal chip rows on TV (focus skips every other chip).
+                scaleFocused = if (tv) 1f else scaleFocused,
+                // Selected chips already use accent fill — use a light ring so focus stays visible.
+                borderColor = if (selected) Color.White else FpColors.Accent,
+                shape = shape,
+            )
             .clip(shape)
             .background(
                 if (selected) MaterialTheme.colorScheme.primary
@@ -319,86 +327,81 @@ fun PosterCard(
     var focused by remember { mutableStateOf(false) }
 
     Column(
-        modifier = modifier
-            .then(if (fixedWidth) Modifier.width(cardWidth) else Modifier)
-            .onFocusChanged { focused = it.isFocused }
-            .tvFocusable(
-                onClick = onClick,
-                scaleFocused = if (tv) FpDimens.focusScale else 1.03f,
-                shape = shape,
-            ),
+        modifier = modifier.then(if (fixedWidth) Modifier.width(cardWidth) else Modifier),
     ) {
+        // Focus ring only around the poster — wrapping title/meta looked broken on TV
+        // and the border was clipped at the grid edge.
         Box(
             modifier = Modifier
                 .fillMaxWidth()
                 .aspectRatio(2f / 3f)
-                .clip(shape)
-                .background(MaterialTheme.colorScheme.surfaceVariant),
+                .onFocusChanged { focused = it.isFocused }
+                .tvFocusable(
+                    onClick = onClick,
+                    // No scale on TV grids: scaled poster overlaps title and clips the
+                    // bottom of the focus ring into a straight line.
+                    scaleFocused = if (tv) 1f else 1.03f,
+                    shape = shape,
+                ),
         ) {
-            if (model != null) {
-                AsyncImage(
-                    model = model,
-                    contentDescription = item.title,
-                    contentScale = ContentScale.Crop,
-                    modifier = Modifier.fillMaxSize(),
-                )
-            }
-            if (focused || !tv) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .background(
-                            Brush.verticalGradient(
-                                listOf(Color.Transparent, Color.Black.copy(alpha = if (focused) 0.45f else 0.15f)),
-                            ),
-                        ),
-                )
-            }
-            if (focused) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.Center)
-                        .size(40.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary),
-                    contentAlignment = Alignment.Center,
-                ) {
-                    Icon(
-                        Icons.Default.PlayArrow,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onPrimary,
-                        modifier = Modifier.size(22.dp),
+            // Clip image only — never clip the focus border drawn by tvFocusable.
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .clip(shape)
+                    .background(MaterialTheme.colorScheme.surfaceVariant),
+            ) {
+                if (model != null) {
+                    AsyncImage(
+                        model = model,
+                        contentDescription = item.title,
+                        contentScale = ContentScale.Crop,
+                        modifier = Modifier.fillMaxSize(),
                     )
                 }
-            }
-            if (watched) {
-                Text(
-                    text = "✓",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onPrimary,
-                    modifier = Modifier
-                        .align(Alignment.TopEnd)
-                        .padding(FpDimens.space6)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary)
-                        .padding(horizontal = 6.dp, vertical = 2.dp),
-                )
-            }
-            if (progress > 0f) {
-                Box(
-                    modifier = Modifier
-                        .align(Alignment.BottomStart)
-                        .fillMaxWidth()
-                        .height(3.dp)
-                        .background(Color.Black.copy(alpha = 0.6f)),
-                ) {
+                if (focused || !tv) {
                     Box(
                         modifier = Modifier
-                            .fillMaxWidth(progress)
-                            .fillMaxHeight()
-                            .background(MaterialTheme.colorScheme.primary),
+                            .fillMaxSize()
+                            .background(
+                                Brush.verticalGradient(
+                                    listOf(
+                                        Color.Transparent,
+                                        Color.Black.copy(alpha = if (focused) 0.45f else 0.15f),
+                                    ),
+                                ),
+                            ),
                     )
+                }
+                if (watched) {
+                    Text(
+                        text = "✓",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onPrimary,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .padding(FpDimens.space6)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.primary)
+                            .padding(horizontal = 6.dp, vertical = 2.dp),
+                    )
+                }
+                if (progress > 0f) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.BottomStart)
+                            .fillMaxWidth()
+                            .height(3.dp)
+                            .background(Color.Black.copy(alpha = 0.6f)),
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .fillMaxWidth(progress)
+                                .fillMaxHeight()
+                                .background(MaterialTheme.colorScheme.primary),
+                        )
+                    }
                 }
             }
         }
@@ -409,11 +412,12 @@ fun PosterCard(
             style = MaterialTheme.typography.titleSmall,
             fontWeight = FontWeight.SemiBold,
             color = MaterialTheme.colorScheme.onSurface,
-            modifier = Modifier.padding(top = FpDimens.space6),
+            // Gap so the poster focus ring isn't covered by title glyphs.
+            modifier = Modifier.padding(top = if (tv) FpDimens.space8 else FpDimens.space6),
         )
         val kindLabel = when {
-            item.kind.equals("Series", ignoreCase = true) -> "Series"
-            item.kind.equals("Movie", ignoreCase = true) -> "Movie"
+            item.kind.equals("Series", ignoreCase = true) -> stringResource(R.string.search_series)
+            item.kind.equals("Movie", ignoreCase = true) -> stringResource(R.string.search_movies)
             else -> null
         }
         val meta = listOfNotNull(item.year?.toString(), kindLabel).joinToString(" · ")

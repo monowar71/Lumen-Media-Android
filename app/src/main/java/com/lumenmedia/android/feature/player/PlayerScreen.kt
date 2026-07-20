@@ -29,11 +29,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Audiotrack
 import androidx.compose.material.icons.filled.Check
-import androidx.compose.material.icons.filled.Forward10
+import androidx.compose.material.icons.filled.ClosedCaption
 import androidx.compose.material.icons.filled.Pause
 import androidx.compose.material.icons.filled.PlayArrow
-import androidx.compose.material.icons.filled.Replay10
 import androidx.compose.material.icons.filled.Tune
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -61,11 +61,14 @@ import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.input.key.Key
 import androidx.compose.ui.input.key.KeyEventType
 import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onPreviewKeyEvent
 import androidx.compose.ui.input.key.type
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.font.FontWeight
@@ -80,14 +83,24 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.media3.ui.AspectRatioFrameLayout
 import androidx.media3.ui.PlayerView
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.ErrorState
 import com.lumenmedia.android.core.designsystem.FpColors
 import com.lumenmedia.android.core.designsystem.FpDimens
 import com.lumenmedia.android.core.designsystem.TvFocusColor
 import com.lumenmedia.android.core.designsystem.isTvDevice
 import com.lumenmedia.android.core.designsystem.tvFocusable
+import com.lumenmedia.android.core.util.formatTrackLanguage
 import kotlinx.coroutines.delay
 import kotlin.math.max
+
+private enum class OpenTrackMenu { Quality, Audio, Subtitles }
+
+private data class TrackMenuItem(
+    val id: String?,
+    val label: String,
+    val subtitle: String? = null,
+)
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalComposeUiApi::class)
@@ -97,22 +110,79 @@ fun PlayerScreen(
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
+    val context = LocalContext.current
     val tv = isTvDevice()
     var controlsVisible by remember { mutableStateOf(true) }
-    var showQuality by remember { mutableStateOf(false) }
+    var openMenu by remember { mutableStateOf<OpenTrackMenu?>(null) }
+    var lastOpenedMenu by remember { mutableStateOf<OpenTrackMenu?>(null) }
     var scrubbing by remember { mutableStateOf(false) }
     var scrubMs by remember { mutableFloatStateOf(0f) }
     var seekFocused by remember { mutableStateOf(false) }
     val playFocus = remember { FocusRequester() }
     val seekFocus = remember { FocusRequester() }
-    val skipBackFocus = remember { FocusRequester() }
-    val skipFwdFocus = remember { FocusRequester() }
     val rootFocus = remember { FocusRequester() }
     val qualityButtonFocus = remember { FocusRequester() }
-    val qualitySelectedFocus = remember { FocusRequester() }
+    val audioButtonFocus = remember { FocusRequester() }
+    val subtitleButtonFocus = remember { FocusRequester() }
+    val menuSelectedFocus = remember { FocusRequester() }
 
     val displayMs = if (scrubbing) scrubMs.toLong() else state.positionMs
     val duration = state.durationMs.coerceAtLeast(1L)
+    val isBusy = (state.loading || state.buffering || state.seeking) && state.error == null
+    val showCenterTransport = state.error == null && (controlsVisible || isBusy || !state.playing)
+
+    val backLabel = stringResource(R.string.player_back)
+    val playLabel = stringResource(R.string.player_play)
+    val pauseLabel = stringResource(R.string.player_pause)
+    val qualityTitle = stringResource(R.string.player_quality)
+    val audioTitle = stringResource(R.string.player_audio)
+    val subtitlesTitle = stringResource(R.string.player_subtitles)
+    val offLabel = stringResource(R.string.player_off)
+    val audioFallback = stringResource(R.string.player_audio_fallback)
+    val subtitleFallback = stringResource(R.string.player_subtitle_fallback)
+    val tvSeekHint = stringResource(R.string.player_tv_seek_hint)
+    val tvSeekBarHint = stringResource(R.string.player_tv_seek_bar_hint)
+
+    val qualityItems = remember(state.decision?.availableQualities) {
+        state.decision?.availableQualities.orEmpty().map { q ->
+            TrackMenuItem(
+                id = q.id,
+                label = q.label,
+                subtitle = q.bitrateKbps?.let { kbps ->
+                    if (kbps >= 1000) "%.1f Mbps".format(kbps / 1000.0) else "$kbps kbps"
+                },
+            )
+        }
+    }
+    val audioItems = remember(state.decision?.audioStreams) {
+        state.decision?.audioStreams.orEmpty().map { stream ->
+            val lang = formatTrackLanguage(context, stream.language)
+                .ifBlank { audioFallback }
+            val label = buildString {
+                append(lang)
+                stream.channels?.let { ch ->
+                    append(' ')
+                    append(context.getString(R.string.player_channels, ch))
+                }
+            }
+            TrackMenuItem(
+                id = stream.id,
+                label = label,
+                subtitle = stream.codec,
+            )
+        }
+    }
+    val subtitleItems = remember(state.decision?.subtitleStreams, offLabel, subtitleFallback) {
+        listOf(TrackMenuItem(id = null, label = offLabel)) +
+            state.decision?.subtitleStreams.orEmpty().map { stream ->
+                TrackMenuItem(
+                    id = stream.id,
+                    label = formatTrackLanguage(context, stream.language)
+                        .ifBlank { subtitleFallback },
+                    subtitle = stream.format,
+                )
+            }
+    }
 
     fun commitScrub() {
         if (!scrubbing) return
@@ -125,11 +195,17 @@ fun PlayerScreen(
         controlsVisible = true
     }
 
-    // TV: Back closes the quality menu, then hides the controls, then exits.
-    // Phone: Back closes the quality menu, then exits.
+    fun toggleMenu(menu: OpenTrackMenu) {
+        openMenu = if (openMenu == menu) null else menu
+        if (openMenu != null) lastOpenedMenu = openMenu
+        revealControls()
+    }
+
+    // TV: Back closes the track menu, then hides the controls, then exits.
+    // Phone: Back closes the track menu, then exits.
     BackHandler {
         when {
-            showQuality -> showQuality = false
+            openMenu != null -> openMenu = null
             tv && controlsVisible -> controlsVisible = false
             else -> onBack()
         }
@@ -151,11 +227,11 @@ fun PlayerScreen(
     // the seek bar is actually on screen.
     LaunchedEffect(controlsVisible, scrubbing, seekFocused) {
         viewModel.setUiVisible(controlsVisible || scrubbing || seekFocused)
-        if (!controlsVisible) showQuality = false
+        if (!controlsVisible) openMenu = null
     }
 
-    LaunchedEffect(controlsVisible, state.playing, scrubbing, seekFocused, showQuality) {
-        if (controlsVisible && state.playing && !scrubbing && !seekFocused && !showQuality) {
+    LaunchedEffect(controlsVisible, state.playing, scrubbing, seekFocused, openMenu) {
+        if (controlsVisible && state.playing && !scrubbing && !seekFocused && openMenu == null) {
             delay(4_000)
             controlsVisible = false
         }
@@ -164,15 +240,26 @@ fun PlayerScreen(
     // Move focus into the dropdown when it opens; back to the button when it
     // closes. Skip the very first composition so the play button keeps its
     // initial focus.
-    var qualityMenuSeen by remember { mutableStateOf(false) }
-    LaunchedEffect(showQuality) {
+    var menuSeen by remember { mutableStateOf(false) }
+    LaunchedEffect(openMenu) {
         if (!tv) return@LaunchedEffect
-        if (showQuality) qualityMenuSeen = true
-        if (!showQuality && !qualityMenuSeen) return@LaunchedEffect
+        if (openMenu != null) {
+            menuSeen = true
+            lastOpenedMenu = openMenu
+        }
+        if (openMenu == null && !menuSeen) return@LaunchedEffect
         delay(80)
         runCatching {
-            if (showQuality) qualitySelectedFocus.requestFocus()
-            else qualityButtonFocus.requestFocus()
+            if (openMenu != null) {
+                menuSelectedFocus.requestFocus()
+            } else {
+                when (lastOpenedMenu) {
+                    OpenTrackMenu.Quality -> qualityButtonFocus.requestFocus()
+                    OpenTrackMenu.Audio -> audioButtonFocus.requestFocus()
+                    OpenTrackMenu.Subtitles -> subtitleButtonFocus.requestFocus()
+                    null -> Unit
+                }
+            }
         }
     }
 
@@ -269,26 +356,53 @@ fun PlayerScreen(
             )
         }
 
-        if ((state.loading || state.buffering || state.seeking) && state.error == null) {
-            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
-                    Text(
-                        text = when {
-                            state.seeking -> "Seeking…"
-                            state.loading -> "Loading…"
-                            else -> "Buffering…"
-                        },
-                        color = Color.White.copy(alpha = 0.85f),
-                        style = MaterialTheme.typography.bodyMedium,
-                        modifier = Modifier.padding(top = 12.dp),
-                    )
-                }
-            }
-        }
-
         state.error?.let {
             ErrorState(it, onRetry = viewModel::retry)
+        }
+
+        // Center play/pause; buffering/loading/seeking = ring around the button.
+        AnimatedVisibility(
+            visible = showCenterTransport,
+            enter = fadeIn(),
+            exit = fadeOut(),
+            modifier = Modifier.fillMaxSize(),
+        ) {
+            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                val playSize = if (tv) 60.dp else 56.dp
+                Box(contentAlignment = Alignment.Center) {
+                    if (isBusy) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(playSize + 16.dp),
+                            color = MaterialTheme.colorScheme.primary,
+                            strokeWidth = 3.dp,
+                            trackColor = Color.White.copy(alpha = 0.15f),
+                        )
+                    }
+                    TransportButton(
+                        onClick = {
+                            viewModel.togglePlay()
+                            revealControls()
+                        },
+                        primary = true,
+                        large = tv,
+                        modifier = Modifier
+                            .focusRequester(playFocus)
+                            .focusProperties {
+                                canFocus = controlsVisible
+                                if (tv && controlsVisible) {
+                                    down = seekFocus
+                                }
+                            },
+                    ) {
+                        Icon(
+                            if (state.playing) Icons.Default.Pause else Icons.Default.PlayArrow,
+                            contentDescription = if (state.playing) pauseLabel else playLabel,
+                            tint = Color.Black,
+                            modifier = Modifier.size(if (tv) 30.dp else 34.dp),
+                        )
+                    }
+                }
+            }
         }
 
         AnimatedVisibility(
@@ -314,7 +428,7 @@ fun PlayerScreen(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.ArrowBack,
-                                contentDescription = "Back",
+                                contentDescription = backLabel,
                                 tint = Color.White,
                             )
                         }
@@ -331,93 +445,6 @@ fun PlayerScreen(
                     }
                 }
 
-                Row(
-                    modifier = Modifier.align(Alignment.Center),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(if (tv) 18.dp else 18.dp),
-                ) {
-                    TransportButton(
-                        onClick = {
-                            viewModel.skipBy(-10_000)
-                            revealControls()
-                        },
-                        large = tv,
-                        modifier = Modifier
-                            .focusRequester(skipBackFocus)
-                            .then(
-                                if (tv) {
-                                    Modifier.focusProperties {
-                                        right = playFocus
-                                        down = seekFocus
-                                    }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    ) {
-                        Icon(
-                            Icons.Default.Replay10,
-                            contentDescription = "Back 10s",
-                            tint = Color.White,
-                            modifier = Modifier.size(if (tv) 26.dp else 28.dp),
-                        )
-                    }
-                    TransportButton(
-                        onClick = {
-                            viewModel.togglePlay()
-                            revealControls()
-                        },
-                        primary = true,
-                        large = tv,
-                        modifier = Modifier
-                            .focusRequester(playFocus)
-                            .then(
-                                if (tv) {
-                                    Modifier.focusProperties {
-                                        left = skipBackFocus
-                                        right = skipFwdFocus
-                                        down = seekFocus
-                                    }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    ) {
-                        Icon(
-                            if (state.playing) Icons.Default.Pause else Icons.Default.PlayArrow,
-                            contentDescription = if (state.playing) "Pause" else "Play",
-                            tint = Color.Black,
-                            modifier = Modifier.size(if (tv) 30.dp else 34.dp),
-                        )
-                    }
-                    TransportButton(
-                        onClick = {
-                            viewModel.skipBy(10_000)
-                            revealControls()
-                        },
-                        large = tv,
-                        modifier = Modifier
-                            .focusRequester(skipFwdFocus)
-                            .then(
-                                if (tv) {
-                                    Modifier.focusProperties {
-                                        left = playFocus
-                                        down = seekFocus
-                                    }
-                                } else {
-                                    Modifier
-                                },
-                            ),
-                    ) {
-                        Icon(
-                            Icons.Default.Forward10,
-                            contentDescription = "Forward 10s",
-                            tint = Color.White,
-                            modifier = Modifier.size(if (tv) 26.dp else 28.dp),
-                        )
-                    }
-                }
-
                 Column(
                     modifier = Modifier
                         .align(Alignment.BottomCenter)
@@ -429,20 +456,52 @@ fun PlayerScreen(
                             bottom = if (tv) 24.dp else 20.dp,
                         ),
                 ) {
-                    if (showQuality) {
-                        QualityDropdown(
-                            qualities = state.decision?.availableQualities.orEmpty(),
+                    when (openMenu) {
+                        OpenTrackMenu.Quality -> TrackDropdown(
+                            title = qualityTitle,
+                            items = qualityItems,
                             selectedId = state.selectedQualityId,
-                            selectedFocus = qualitySelectedFocus,
+                            selectedFocus = menuSelectedFocus,
                             onSelect = { id ->
-                                if (id != state.selectedQualityId) viewModel.changeQuality(id)
-                                showQuality = false
+                                if (id != null && id != state.selectedQualityId) {
+                                    viewModel.changeQuality(id)
+                                }
+                                openMenu = null
                                 revealControls()
                             },
                             modifier = Modifier
                                 .align(Alignment.End)
                                 .padding(bottom = 10.dp),
                         )
+                        OpenTrackMenu.Audio -> TrackDropdown(
+                            title = audioTitle,
+                            items = audioItems,
+                            selectedId = state.selectedAudioId,
+                            selectedFocus = menuSelectedFocus,
+                            onSelect = { id ->
+                                if (id != null) viewModel.changeAudio(id)
+                                openMenu = null
+                                revealControls()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(bottom = 10.dp),
+                        )
+                        OpenTrackMenu.Subtitles -> TrackDropdown(
+                            title = subtitlesTitle,
+                            items = subtitleItems,
+                            selectedId = state.selectedSubtitleId,
+                            selectedFocus = menuSelectedFocus,
+                            onSelect = { id ->
+                                viewModel.changeSubtitle(id)
+                                openMenu = null
+                                revealControls()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(bottom = 10.dp),
+                        )
+                        null -> Unit
                     }
 
                     if (scrubbing || seekFocused) {
@@ -491,24 +550,48 @@ fun PlayerScreen(
                         Spacer(Modifier.weight(1f))
                         if (tv) {
                             Text(
-                                text = if (seekFocused) "← → seek · OK confirm" else "↓ seek bar",
+                                text = if (seekFocused) tvSeekHint else tvSeekBarHint,
                                 color = Color.White.copy(alpha = 0.45f),
                                 style = MaterialTheme.typography.labelMedium,
                                 modifier = Modifier.padding(end = 10.dp),
                             )
                         }
-                        QualityButton(
-                            label = state.decision?.availableQualities
-                                ?.firstOrNull { it.id == state.selectedQualityId }
-                                ?.label
-                                ?: state.selectedQualityId.replaceFirstChar(Char::uppercase),
-                            focusRequester = qualityButtonFocus,
-                            upFocus = seekFocus,
-                            onClick = {
-                                showQuality = !showQuality
-                                revealControls()
-                            },
-                        )
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            TrackMenuButton(
+                                label = state.decision?.availableQualities
+                                    ?.firstOrNull { it.id == state.selectedQualityId }
+                                    ?.label
+                                    ?: state.selectedQualityId.replaceFirstChar(Char::uppercase),
+                                icon = Icons.Default.Tune,
+                                contentDescription = qualityTitle,
+                                focusRequester = qualityButtonFocus,
+                                upFocus = seekFocus,
+                                rightFocus = audioButtonFocus,
+                                onClick = { toggleMenu(OpenTrackMenu.Quality) },
+                            )
+                            TrackMenuButton(
+                                label = audioTitle,
+                                icon = Icons.Default.Audiotrack,
+                                contentDescription = audioTitle,
+                                focusRequester = audioButtonFocus,
+                                upFocus = seekFocus,
+                                leftFocus = qualityButtonFocus,
+                                rightFocus = subtitleButtonFocus,
+                                onClick = { toggleMenu(OpenTrackMenu.Audio) },
+                            )
+                            TrackMenuButton(
+                                label = subtitlesTitle,
+                                icon = Icons.Default.ClosedCaption,
+                                contentDescription = subtitlesTitle,
+                                focusRequester = subtitleButtonFocus,
+                                upFocus = seekFocus,
+                                leftFocus = audioButtonFocus,
+                                onClick = { toggleMenu(OpenTrackMenu.Subtitles) },
+                            )
+                        }
                     }
                 }
             }
@@ -696,28 +779,36 @@ private fun TvSeekBar(
     }
 }
 
-/** Compact pill next to the timeline showing the active quality; opens the dropdown. */
+/** Compact pill next to the timeline; opens a track dropdown. */
 @Composable
-private fun QualityButton(
+private fun TrackMenuButton(
     label: String,
+    icon: ImageVector,
+    contentDescription: String,
     focusRequester: FocusRequester,
     upFocus: FocusRequester,
     onClick: () -> Unit,
+    leftFocus: FocusRequester? = null,
+    rightFocus: FocusRequester? = null,
 ) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp),
         modifier = Modifier
             .focusRequester(focusRequester)
-            .focusProperties { up = upFocus }
+            .focusProperties {
+                up = upFocus
+                leftFocus?.let { left = it }
+                rightFocus?.let { right = it }
+            }
             .tvFocusable(onClick = onClick, shape = RoundedCornerShape(16.dp))
             .clip(RoundedCornerShape(16.dp))
             .background(Color.White.copy(alpha = 0.14f))
             .padding(horizontal = 12.dp, vertical = 6.dp),
     ) {
         Icon(
-            Icons.Default.Tune,
-            contentDescription = "Quality",
+            icon,
+            contentDescription = contentDescription,
             tint = Color.White,
             modifier = Modifier.size(14.dp),
         )
@@ -732,14 +823,15 @@ private fun QualityButton(
 
 /**
  * Vertical dropdown anchored above the timeline (end-aligned). One focusable
- * row per quality; the selected row gets initial focus so OK re-confirms.
+ * row per option; the selected row gets initial focus so OK re-confirms.
  */
 @Composable
-private fun QualityDropdown(
-    qualities: List<com.lumenmedia.android.core.model.QualityOption>,
-    selectedId: String,
+private fun TrackDropdown(
+    title: String,
+    items: List<TrackMenuItem>,
+    selectedId: String?,
     selectedFocus: FocusRequester,
-    onSelect: (String) -> Unit,
+    onSelect: (String?) -> Unit,
     modifier: Modifier = Modifier,
 ) {
     Column(
@@ -753,20 +845,20 @@ private fun QualityDropdown(
             .verticalScroll(rememberScrollState()),
     ) {
         Text(
-            text = "Quality",
+            text = title,
             color = Color.White.copy(alpha = 0.55f),
             style = MaterialTheme.typography.labelMedium,
             modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
         )
-        qualities.forEach { q ->
-            val selected = q.id == selectedId
+        items.forEach { item ->
+            val selected = item.id == selectedId
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 6.dp)
                     .then(if (selected) Modifier.focusRequester(selectedFocus) else Modifier)
-                    .tvFocusable(onClick = { onSelect(q.id) }, shape = RoundedCornerShape(FpDimens.radiusSm))
+                    .tvFocusable(onClick = { onSelect(item.id) }, shape = RoundedCornerShape(FpDimens.radiusSm))
                     .clip(RoundedCornerShape(FpDimens.radiusSm))
                     .background(
                         if (selected) FpColors.AccentSoft else Color.Transparent,
@@ -775,16 +867,16 @@ private fun QualityDropdown(
             ) {
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = q.label,
+                        text = item.label,
                         color = Color.White,
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = if (selected) FontWeight.Bold else FontWeight.Medium,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis,
                     )
-                    q.bitrateKbps?.let { kbps ->
+                    item.subtitle?.takeIf { it.isNotBlank() }?.let { sub ->
                         Text(
-                            text = if (kbps >= 1000) "%.1f Mbps".format(kbps / 1000.0) else "$kbps kbps",
+                            text = sub,
                             color = Color.White.copy(alpha = 0.5f),
                             style = MaterialTheme.typography.labelMedium,
                         )
@@ -793,7 +885,7 @@ private fun QualityDropdown(
                 if (selected) {
                     Icon(
                         Icons.Default.Check,
-                        contentDescription = "Selected",
+                        contentDescription = null,
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(16.dp),
                     )

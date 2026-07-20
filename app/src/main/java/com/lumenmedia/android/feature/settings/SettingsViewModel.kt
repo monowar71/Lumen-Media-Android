@@ -28,6 +28,7 @@ data class SettingsUiState(
     val lanCapKbps: Int = 0,
     val externalCapKbps: Int = 8000,
     val preferredMode: String = "auto",
+    val locale: String = "ru",
     val maxCacheBytes: Long = SettingsRepository.DEFAULT_MAX_CACHE_BYTES,
     val username: String? = null,
     val role: String? = null,
@@ -70,6 +71,7 @@ class SettingsViewModel @Inject constructor(
                     lanCapKbps = settings.lanCapKbps,
                     externalCapKbps = settings.externalCapKbps,
                     preferredMode = settings.preferredMode,
+                    locale = settings.locale,
                     maxCacheBytes = settings.maxCacheBytes,
                     username = session?.username,
                     role = session?.role,
@@ -129,6 +131,13 @@ class SettingsViewModel @Inject constructor(
         viewModelScope.launch {
             settingsRepository.setPreferredMode(mode)
             _state.update { it.copy(message = "Playback mode saved", error = null) }
+        }
+    }
+
+    fun saveLocale(tag: String) {
+        viewModelScope.launch {
+            settingsRepository.setLocale(tag)
+            _state.update { it.copy(locale = tag, error = null) }
         }
     }
 

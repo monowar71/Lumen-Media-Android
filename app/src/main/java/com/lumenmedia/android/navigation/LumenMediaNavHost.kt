@@ -34,6 +34,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -45,6 +46,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
 import androidx.navigation.navArgument
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.designsystem.FpBrandMark
 import com.lumenmedia.android.core.designsystem.FpDimens
 import com.lumenmedia.android.core.designsystem.FullPageLoading
@@ -236,8 +238,18 @@ private fun MainScaffold(
                     NavigationBarItem(
                         selected = currentRoute == Routes.Home,
                         onClick = { onNavigate(Routes.Home) },
-                        icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                        label = { Text("Home", style = MaterialTheme.typography.labelMedium) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Home,
+                                contentDescription = stringResource(R.string.nav_home),
+                            )
+                        },
+                        label = {
+                            Text(
+                                stringResource(R.string.nav_home),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
                         colors = colors,
                     )
                     NavigationBarItem(
@@ -246,22 +258,52 @@ private fun MainScaffold(
                             if (firstLibrary != null) onLibrary(firstLibrary)
                             else onNavigate(Routes.Settings)
                         },
-                        icon = { Icon(Icons.Default.VideoLibrary, contentDescription = "Library") },
-                        label = { Text("Library", style = MaterialTheme.typography.labelMedium) },
+                        icon = {
+                            Icon(
+                                Icons.Default.VideoLibrary,
+                                contentDescription = stringResource(R.string.library_title),
+                            )
+                        },
+                        label = {
+                            Text(
+                                stringResource(R.string.library_title),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
                         colors = colors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Routes.Search,
                         onClick = { onNavigate(Routes.Search) },
-                        icon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                        label = { Text("Search", style = MaterialTheme.typography.labelMedium) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Search,
+                                contentDescription = stringResource(R.string.nav_search),
+                            )
+                        },
+                        label = {
+                            Text(
+                                stringResource(R.string.nav_search),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
                         colors = colors,
                     )
                     NavigationBarItem(
                         selected = currentRoute == Routes.Settings,
                         onClick = { onNavigate(Routes.Settings) },
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings", style = MaterialTheme.typography.labelMedium) },
+                        icon = {
+                            Icon(
+                                Icons.Default.Settings,
+                                contentDescription = stringResource(R.string.nav_settings),
+                            )
+                        },
+                        label = {
+                            Text(
+                                stringResource(R.string.nav_settings),
+                                style = MaterialTheme.typography.labelMedium,
+                            )
+                        },
                         colors = colors,
                     )
                 }
@@ -300,21 +342,31 @@ private fun TvSideBar(
         ) {
             FpBrandMark(size = 30.dp)
             Text(
-                text = "LumenMedia",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.ExtraBold,
                 color = MaterialTheme.colorScheme.onSurface,
             )
         }
         Spacer(Modifier.height(FpDimens.space12))
-        TvSectionLabel("Browse")
-        TvNavRow("Home", Icons.Default.Home, currentRoute == Routes.Home, onHome)
-        TvNavRow("Search", Icons.Default.Search, currentRoute == Routes.Search, onSearch)
+        TvSectionLabel(stringResource(R.string.nav_browse))
+        TvNavRow(
+            stringResource(R.string.nav_home),
+            Icons.Default.Home,
+            currentRoute == Routes.Home,
+            onHome,
+        )
+        TvNavRow(
+            stringResource(R.string.nav_search),
+            Icons.Default.Search,
+            currentRoute == Routes.Search,
+            onSearch,
+        )
         Spacer(Modifier.height(FpDimens.space12))
-        TvSectionLabel("Libraries")
+        TvSectionLabel(stringResource(R.string.nav_libraries))
         if (libraries.isEmpty()) {
             Text(
-                text = "No libraries",
+                text = stringResource(R.string.nav_no_libraries),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(horizontal = FpDimens.space12, vertical = FpDimens.space6),
@@ -337,8 +389,13 @@ private fun TvSideBar(
             }
         }
         Spacer(Modifier.height(FpDimens.space12))
-        TvSectionLabel("Manage")
-        TvNavRow("Settings", Icons.Default.Settings, currentRoute == Routes.Settings, onSettings)
+        TvSectionLabel(stringResource(R.string.nav_manage))
+        TvNavRow(
+            stringResource(R.string.nav_settings),
+            Icons.Default.Settings,
+            currentRoute == Routes.Settings,
+            onSettings,
+        )
     }
 }
 

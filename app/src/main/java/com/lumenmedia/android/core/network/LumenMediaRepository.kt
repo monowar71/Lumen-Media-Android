@@ -56,8 +56,19 @@ class LumenMediaRepository @Inject constructor(
         order: String = "desc",
         watched: Boolean? = null,
         q: String? = null,
+        genre: String? = null,
+        year: Int? = null,
     ): PagedResult<MediaItemSummary> =
-        api.libraryItems(id, page = page, sort = sort, order = order, watched = watched, q = q)
+        api.libraryItems(
+            id,
+            page = page,
+            sort = sort,
+            order = order,
+            watched = watched,
+            q = q,
+            genre = genre,
+            year = year,
+        )
     suspend fun itemDetail(id: String): ItemDetailResult {
         val element = api.item(id)
         val kind = element.jsonObject["kind"]?.toString()?.trim('"')
