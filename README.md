@@ -1,43 +1,59 @@
 # LumenMedia Android
 
-Kotlin + Jetpack Compose client for phones/tablets (Android TV leanback entry included).
+[![CI](https://github.com/monowar71/Lumen-Media-Android/actions/workflows/ci.yml/badge.svg)](https://github.com/monowar71/Lumen-Media-Android/actions/workflows/ci.yml)
+[![License: GPL-3.0](https://img.shields.io/badge/License-GPLv3-blue.svg)](LICENSE)
 
-## Stack
+**Kotlin + Jetpack Compose** client for phones, tablets, and Android TV. Thin UI over [Lumen-Media-Server](https://github.com/monowar71/Lumen-Media-Server) with Media3 ExoPlayer (Direct Play + HLS).
 
-- Compose + Material 3, Navigation, Hilt
-- Retrofit + Kotlinx Serialization (API aligned with `server/openapi.json`)
-- Media3 ExoPlayer (Direct Play + HLS)
-- DataStore settings, EncryptedSharedPreferences tokens
-- Room offline episode cache (`GET /items/{id}/download`)
+## Features
+
+- Phone/tablet Material 3 UI and Android TV leanback-friendly navigation
+- Home, library, details, search, settings (including admin library ops)
+- ExoPlayer DirectPlay / HLS with quality & track selection
+- Offline episode cache via server download API + Room
+- Design tokens aligned with the web client (`#0b1f1a` / mint `#3ecf9a`)
+
+## Requirements
+
+- Android Studio / JDK 17+
+- Android SDK (see `compileSdk` in Gradle)
+- A running [LumenMedia Server](https://github.com/monowar71/Lumen-Media-Server)
 
 ## Build
 
 ```bash
-export ANDROID_HOME=$HOME/Library/Android/sdk
+git clone https://github.com/monowar71/Lumen-Media-Android.git
+cd Lumen-Media-Android
+
+export ANDROID_HOME=$HOME/Library/Android/sdk   # or your SDK path
 ./gradlew :app:assembleDebug :app:testDebugUnitTest
 ```
 
-Debug APK (publishable for sideload/QA): `app/build/outputs/apk/debug/app-debug.apk`  
-Release APK (unsigned): `app/build/outputs/apk/release/app-release-unsigned.apk`
+- Debug APK: `app/build/outputs/apk/debug/app-debug.apk`
+- Release APK (unsigned): `app/build/outputs/apk/release/app-release-unsigned.apk`
 
-Default API base URL for emulator: `http://10.0.2.2:8096` (host loopback).
+Default emulator API base URL: `http://10.0.2.2:8096`.
 
-### Release / Play Store signing
+**Do not commit** keystores, passwords, or `local.properties`.
 
-`assembleRelease` produces an **unsigned** APK. For Play Store upload, sign with an upload keystore
-(`apksigner` / Play App Signing) and prefer AAB via `:app:bundleRelease` once a keystore is configured
-in `app/build.gradle.kts` (do not commit keystore files or passwords).
+## Architecture
 
-## Screens (web-aligned UI)
+Compose + Hilt + Navigation; MVVM/MVI with `StateFlow`. Features under `app/` (`feature/*`, `core/*`). See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) and [AGENTS.md](AGENTS.md).
 
-Login/setup, Home (hero + shelves), Library grid, Item details, Search, Settings (TV-safe rows, caps, offline cache, admin libraries), Player.
+## Related repositories
 
-Design tokens match the web client (`#0b1f1a` / `#122a23` / accent `#3ecf9a`, Manrope): see `core/designsystem/` (`Theme`, `FpDimens`, `Components`). Phone uses bottom nav; TV uses left sidebar with D-pad focus rings.
+| Repo | Role |
+| --- | --- |
+| [Lumen-Media-Server](https://github.com/monowar71/Lumen-Media-Server) | Backend API + transcoding |
+| [Lumen-Media-iOS](https://github.com/monowar71/Lumen-Media-iOS) | iOS / iPad client |
+| [Lumen-Media-Web](https://github.com/monowar71/Lumen-Media-Web) | Web client |
 
-## Tests
+## Contributing
 
-```bash
-./gradlew :app:testDebugUnitTest
-```
+See [CONTRIBUTING.md](CONTRIBUTING.md) and the [Code of Conduct](CODE_OF_CONDUCT.md). Security: [SECURITY.md](SECURITY.md).
 
-Covers URL helpers, playback source mapping, and AuthViewModel login flow (mocked repository).
+## License
+
+[GNU General Public License v3.0](LICENSE)
+
+Copyright © 2026 Alexander Goncharow and contributors.
