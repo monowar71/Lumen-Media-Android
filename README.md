@@ -32,7 +32,7 @@ in `app/build.gradle.kts` (do not commit keystore files or passwords).
 
 Login/setup, Home (hero + shelves), Library grid, Item details, Search, Settings (TV-safe rows, caps, offline cache, admin libraries), Player.
 
-Design tokens match the web client (`#0f1014` / `#1a1c23` / accent `#e5a00d`, Manrope): see `core/designsystem/` (`Theme`, `FpDimens`, `Components`). Phone uses bottom nav; TV uses left sidebar with D-pad focus rings.
+Design tokens match the web client (`#0b1f1a` / `#122a23` / accent `#3ecf9a`, Manrope): see `core/designsystem/` (`Theme`, `FpDimens`, `Components`). Phone uses bottom nav; TV uses left sidebar with D-pad focus rings.
 
 ## Tests
 

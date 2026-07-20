@@ -1,5 +1,6 @@
 package com.lumenmedia.android.core.designsystem
 
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -43,12 +44,14 @@ import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.AsyncImage
+import com.lumenmedia.android.R
 import com.lumenmedia.android.core.model.MediaItemSummary
 import com.lumenmedia.android.core.util.artworkUrl
 
@@ -235,20 +238,13 @@ fun FpBadge(
 
 @Composable
 fun FpBrandMark(size: Dp = 28.dp) {
-    Box(
+    Image(
+        painter = painterResource(R.drawable.ic_brand_mark),
+        contentDescription = null,
         modifier = Modifier
             .size(size)
-            .clip(RoundedCornerShape(FpDimens.radiusSm))
-            .background(MaterialTheme.colorScheme.primary),
-        contentAlignment = Alignment.Center,
-    ) {
-        Icon(
-            imageVector = Icons.Default.PlayArrow,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.onPrimary,
-            modifier = Modifier.size(size * 0.55f),
-        )
-    }
+            .clip(RoundedCornerShape(FpDimens.radiusSm)),
+    )
 }
 
 @Composable

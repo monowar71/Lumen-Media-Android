@@ -14,20 +14,21 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 import com.lumenmedia.android.R
 
-/** Web-aligned LumenMedia palette (client_web/src/index.css). */
+/** Web-aligned LumenMedia palette (client_web/src/index.css + docs/brand). */
 object FpColors {
-    val Bg = Color(0xFF0F1014)
-    val Surface = Color(0xFF1A1C23)
-    val Surface2 = Color(0xFF242730)
-    val Surface3 = Color(0xFF2E323C)
-    val Border = Color(0xFF343844)
-    val Muted = Color(0xFFA0A7B5)
-    val Text = Color(0xFFF5F6F8)
-    val Accent = Color(0xFFE5A00D)
-    val AccentHover = Color(0xFFF2B21F)
-    val AccentSoft = Color(0x2EE5A00D) // ~18% accent
+    val Bg = Color(0xFF0B1F1A)
+    val Surface = Color(0xFF122A23)
+    val Surface2 = Color(0xFF1A3830)
+    val Surface3 = Color(0xFF224840)
+    val Border = Color(0xFF2A554A)
+    val Muted = Color(0xFF8AA399)
+    val Text = Color(0xFFE7F6F0)
+    val Accent = Color(0xFF3ECF9A)
+    val AccentHover = Color(0xFF5FE0B0)
+    val AccentSoft = Color(0x2E3ECF9A) // ~18% accent
+    val OnAccent = Color(0xFF0B1F1A)
     val Error = Color(0xFFF87171)
-    val Success = Color(0xFF34D399)
+    val Success = Color(0xFF6EE7B7)
 }
 
 private val Manrope = FontFamily(
@@ -40,13 +41,13 @@ private val Manrope = FontFamily(
 
 private val Scheme = darkColorScheme(
     primary = FpColors.Accent,
-    onPrimary = Color.Black,
+    onPrimary = FpColors.OnAccent,
     primaryContainer = FpColors.AccentSoft,
     onPrimaryContainer = FpColors.Accent,
     secondary = FpColors.Surface3,
     onSecondary = FpColors.Text,
     tertiary = FpColors.Success,
-    onTertiary = Color.Black,
+    onTertiary = FpColors.OnAccent,
     background = FpColors.Bg,
     onBackground = FpColors.Text,
     surface = FpColors.Surface,
@@ -57,7 +58,7 @@ private val Scheme = darkColorScheme(
     outline = FpColors.Border,
     outlineVariant = FpColors.Border.copy(alpha = 0.6f),
     error = FpColors.Error,
-    onError = Color.Black,
+    onError = FpColors.OnAccent,
 )
 
 private val FpShapes = Shapes(
