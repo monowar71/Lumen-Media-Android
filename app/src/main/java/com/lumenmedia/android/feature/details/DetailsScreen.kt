@@ -69,6 +69,7 @@ import com.lumenmedia.android.core.offline.CachedEpisodeStatus
 import com.lumenmedia.android.core.offline.OfflineEpisodeState
 import com.lumenmedia.android.core.util.absoluteUrl
 import com.lumenmedia.android.core.util.artworkUrl
+import com.lumenmedia.android.feature.library.LibraryGenre
 
 @Composable
 fun DetailsScreen(
@@ -107,6 +108,7 @@ fun DetailsScreen(
                     title = movie.title,
                     subtitle = listOfNotNull(movie.year?.toString(), movie.officialRating)
                         .joinToString(" · "),
+                    genres = movie.genres.orEmpty(),
                     overview = movie.overview,
                     backdrop = movie.artwork.backdrop ?: movie.artwork.poster,
                     poster = movie.artwork.poster,
@@ -175,6 +177,7 @@ fun DetailsScreen(
                         series.year?.toString(),
                         stringResource(R.string.details_seasons_count, series.seasonCount),
                     ).joinToString(" · "),
+                    genres = series.genres.orEmpty(),
                     overview = series.overview,
                     backdrop = series.artwork.backdrop ?: series.artwork.poster,
                     poster = series.artwork.poster,
@@ -492,6 +495,7 @@ private fun DetailScaffold(
     playLabel: String?,
     onPlay: (() -> Unit)?,
     tv: Boolean,
+    genres: List<String> = emptyList(),
     trailerUrl: String? = null,
     playFromStartLabel: String? = null,
     onPlayFromStart: (() -> Unit)? = null,
@@ -629,6 +633,9 @@ private fun DetailScaffold(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                         )
                     }
+                    if (tv && genres.isNotEmpty()) {
+                        GenreBadgeRow(genres = genres)
+                    }
                     if (tv) {
                         overview?.let {
                             Text(
@@ -643,6 +650,13 @@ private fun DetailScaffold(
                 }
             }
             if (!tv) {
+                // Phone layout: genres sit under the poster row (next to title on TV).
+                if (genres.isNotEmpty()) {
+                    GenreBadgeRow(
+                        genres = genres,
+                        modifier = Modifier.padding(top = FpDimens.space10),
+                    )
+                }
                 overview?.let {
                     Text(
                         it,
@@ -699,6 +713,29 @@ private fun DetailScaffold(
             }
         }
     }
+}
+
+@Composable
+private fun GenreBadgeRow(
+    genres: List<String>,
+    modifier: Modifier = Modifier,
+) {
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .horizontalScroll(rememberScrollState()),
+        horizontalArrangement = Arrangement.spacedBy(FpDimens.space6),
+    ) {
+        genres.forEach { genre ->
+            FpBadge(label = genreDisplayLabel(genre))
+        }
+    }
+}
+
+@Composable
+private fun genreDisplayLabel(apiValue: String): String {
+    val known = LibraryGenre.entries.find { it.apiValue.equals(apiValue, ignoreCase = true) }
+    return known?.let { stringResource(it.labelRes) } ?: apiValue
 }
 
 @Composable

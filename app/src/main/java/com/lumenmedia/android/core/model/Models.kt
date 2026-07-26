@@ -304,6 +304,8 @@ data class QualityOption(
 data class AudioStreamOption(
     val id: String,
     val language: String? = null,
+    /** Container track title — often the dubbing studio. */
+    val title: String? = null,
     val codec: String? = null,
     val channels: Int? = null,
     val isDefault: Boolean? = null,
@@ -313,7 +315,11 @@ data class AudioStreamOption(
 data class SubtitleStreamOption(
     val id: String,
     val language: String? = null,
+    /** Container track title (e.g. "Russian (Forced)"). */
+    val title: String? = null,
     val format: String? = null,
+    val isDefault: Boolean? = null,
+    val isForced: Boolean? = null,
     val deliveryUrl: String = "",
 )
 

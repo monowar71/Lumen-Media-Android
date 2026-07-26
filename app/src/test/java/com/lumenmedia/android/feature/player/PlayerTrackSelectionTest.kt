@@ -49,11 +49,17 @@ class PlayerTrackSelectionTest {
             method = "DirectPlay",
             streamUrl = "/stream",
             audioStreams = listOf(
-                AudioStreamOption(id = "a1", language = "eng", channels = 2, isDefault = true),
-                AudioStreamOption(id = "a2", language = "rus", channels = 6),
+                AudioStreamOption(id = "a1", language = "eng", title = "English", channels = 2, isDefault = true),
+                AudioStreamOption(id = "a2", language = "rus", title = "LostFilm", channels = 6),
             ),
             subtitleStreams = listOf(
-                SubtitleStreamOption(id = "s1", language = "rus", format = "vtt", deliveryUrl = "/subs/1"),
+                SubtitleStreamOption(
+                    id = "s1",
+                    language = "rus",
+                    title = "Russian (Forced)",
+                    format = "vtt",
+                    deliveryUrl = "/subs/1",
+                ),
             ),
         )
         assertThat(decision.audioStreams).hasSize(2)

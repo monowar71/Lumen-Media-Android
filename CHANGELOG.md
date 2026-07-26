@@ -6,8 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.1] - 2026-07-26
+
 ### Added
 
+- Detail screens show genre badges (localized when known), matching the web client.
+- Player audio/subtitle menus show container track titles (dubbing studio / track name) when provided by the server.
 - UI locale switcher (`ru` default / `en`) with Android per-app language APIs.
 - Library filters: genre, year, watched/unwatched; sort fields title/year/added/rating/runtime + order.
 - Player audio and subtitle track menus (server re-decision + WebVTT sidecar).
@@ -24,3 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
+
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.1...HEAD
+[0.1.1]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.1
+[0.1.0]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.0

@@ -278,7 +278,7 @@ class PlayerViewModel @Inject constructor(
                 .setMimeType(mime)
                 .setLanguage(stream.language)
                 .setId(stream.id)
-                .setLabel(stream.language ?: stream.id)
+                .setLabel(stream.title?.takeIf { it.isNotBlank() } ?: stream.language ?: stream.id)
                 .setSelectionFlags(
                     if (stream.id == selectedSubtitleId) C.SELECTION_FLAG_DEFAULT else 0,
                 )

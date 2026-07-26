@@ -158,28 +158,41 @@ fun PlayerScreen(
         state.decision?.audioStreams.orEmpty().map { stream ->
             val lang = formatTrackLanguage(context, stream.language)
                 .ifBlank { audioFallback }
-            val label = buildString {
-                append(lang)
-                stream.channels?.let { ch ->
-                    append(' ')
-                    append(context.getString(R.string.player_channels, ch))
+            val title = stream.title?.trim().orEmpty()
+            val label = title.ifBlank { lang }
+            val subtitleParts = buildList {
+                if (title.isNotBlank() && lang.isNotBlank() && !title.equals(lang, ignoreCase = true)) {
+                    add(lang)
                 }
+                stream.channels?.let { ch ->
+                    add(context.getString(R.string.player_channels, ch))
+                }
+                stream.codec?.takeIf { it.isNotBlank() }?.let { add(it) }
             }
             TrackMenuItem(
                 id = stream.id,
                 label = label,
-                subtitle = stream.codec,
+                subtitle = subtitleParts.takeIf { it.isNotEmpty() }?.joinToString(" "),
             )
         }
     }
     val subtitleItems = remember(state.decision?.subtitleStreams, offLabel, subtitleFallback) {
         listOf(TrackMenuItem(id = null, label = offLabel)) +
             state.decision?.subtitleStreams.orEmpty().map { stream ->
+                val lang = formatTrackLanguage(context, stream.language)
+                    .ifBlank { subtitleFallback }
+                val title = stream.title?.trim().orEmpty()
+                val label = title.ifBlank { lang }
+                val subtitleParts = buildList {
+                    if (title.isNotBlank() && lang.isNotBlank() && !title.equals(lang, ignoreCase = true)) {
+                        add(lang)
+                    }
+                    stream.format?.takeIf { it.isNotBlank() }?.let { add(it) }
+                }
                 TrackMenuItem(
                     id = stream.id,
-                    label = formatTrackLanguage(context, stream.language)
-                        .ifBlank { subtitleFallback },
-                    subtitle = stream.format,
+                    label = label,
+                    subtitle = subtitleParts.takeIf { it.isNotEmpty() }?.joinToString(" "),
                 )
             }
     }
