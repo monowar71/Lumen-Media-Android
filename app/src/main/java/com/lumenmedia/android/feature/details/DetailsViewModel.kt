@@ -14,12 +14,16 @@ import com.lumenmedia.android.core.network.toUserMessage
 import com.lumenmedia.android.core.offline.OfflineDownloadManager
 import com.lumenmedia.android.core.offline.OfflineEnqueueRequest
 import com.lumenmedia.android.core.offline.OfflineEpisodeState
+import com.lumenmedia.android.core.preferences.SessionStore
 import com.lumenmedia.android.core.preferences.SettingsRepository
 import dagger.hilt.android.lifecycle.HiltViewModel
 import javax.inject.Inject
+import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.stateIn
@@ -36,18 +40,30 @@ data class DetailsUiState(
     val selectedSeasonId: String? = null,
     val episodes: List<EpisodeSummary> = emptyList(),
     val markingWatched: Boolean = false,
+    val deletingFile: Boolean = false,
+    val isAdmin: Boolean = false,
     val offlineByEpisodeId: Map<String, OfflineEpisodeState> = emptyMap(),
 )
+
+sealed interface DetailsEvent {
+    /** Movie (or other top-level item) was removed — leave the details screen. */
+    data object LeaveDetails : DetailsEvent
+}
 
 @HiltViewModel
 class DetailsViewModel @Inject constructor(
     savedStateHandle: SavedStateHandle,
     private val repository: LumenMediaRepository,
     private val settingsRepository: SettingsRepository,
+    private val sessionStore: SessionStore,
     private val offlineDownloadManager: OfflineDownloadManager,
 ) : ViewModel() {
     private val itemId: String = checkNotNull(savedStateHandle["itemId"])
     private val _state = MutableStateFlow(DetailsUiState())
+    private val _events = MutableSharedFlow<DetailsEvent>(
+        replay = 1,
+        extraBufferCapacity = 1,
+    )
 
     val state: StateFlow<DetailsUiState> = combine(
         _state,
@@ -56,12 +72,15 @@ class DetailsViewModel @Inject constructor(
         ui.copy(offlineByEpisodeId = offline.associateBy { it.episodeId })
     }.stateIn(viewModelScope, SharingStarted.Eagerly, DetailsUiState())
 
+    val events: SharedFlow<DetailsEvent> = _events.asSharedFlow()
+
     init { refresh() }
 
     fun refresh() {
         viewModelScope.launch {
             _state.update { it.copy(loading = true, error = null) }
             val baseUrl = settingsRepository.settings.first().baseUrl
+            val isAdmin = sessionStore.readSession()?.role.equals("Admin", ignoreCase = true)
             runCatching { repository.itemDetail(itemId) }
                 .onSuccess { detail ->
                     when (detail) {
@@ -73,6 +92,7 @@ class DetailsViewModel @Inject constructor(
                                 seasons = emptyList(),
                                 episodes = emptyList(),
                                 baseUrl = baseUrl,
+                                isAdmin = isAdmin,
                             )
                         }
                         is ItemDetailResult.Series -> {
@@ -88,6 +108,7 @@ class DetailsViewModel @Inject constructor(
                                     selectedSeasonId = first?.id,
                                     episodes = episodes,
                                     baseUrl = baseUrl,
+                                    isAdmin = isAdmin,
                                 )
                             }
                         }
@@ -95,7 +116,11 @@ class DetailsViewModel @Inject constructor(
                 }
                 .onFailure { err ->
                     _state.update {
-                        it.copy(loading = false, error = err.toUserMessage("Failed to load details"))
+                        it.copy(
+                            loading = false,
+                            error = err.toUserMessage("Failed to load details"),
+                            isAdmin = isAdmin,
+                        )
                     }
                 }
         }
@@ -217,6 +242,53 @@ class DetailsViewModel @Inject constructor(
                 )
             }
             refreshSeriesUnwatchedCount()
+        }
+    }
+
+    fun deleteMovieFile() {
+        val movie = _state.value.movie ?: return
+        if (!_state.value.isAdmin || movie.mediaSources.isEmpty()) return
+        deleteMediaFile(movie.id, leaveOnRemoved = true) {
+            _state.update { it.copy(movie = movie.copy(mediaSources = emptyList())) }
+        }
+    }
+
+    fun deleteEpisodeFile(episodeId: String) {
+        if (!_state.value.isAdmin) return
+        if (_state.value.episodes.none { it.id == episodeId }) return
+        deleteMediaFile(episodeId, leaveOnRemoved = false) {
+            _state.update { state ->
+                state.copy(episodes = state.episodes.filterNot { it.id == episodeId })
+            }
+            refreshSeriesUnwatchedCount()
+        }
+    }
+
+    private fun deleteMediaFile(
+        mediaId: String,
+        leaveOnRemoved: Boolean,
+        onSourcesCleared: () -> Unit,
+    ) {
+        if (_state.value.deletingFile) return
+        viewModelScope.launch {
+            _state.update { it.copy(deletingFile = true, error = null) }
+            runCatching { repository.deleteMediaFile(mediaId) }
+                .onSuccess { result ->
+                    _state.update { it.copy(deletingFile = false) }
+                    if (result.mediaRemoved && leaveOnRemoved) {
+                        _events.emit(DetailsEvent.LeaveDetails)
+                    } else {
+                        onSourcesCleared()
+                    }
+                }
+                .onFailure { err ->
+                    _state.update {
+                        it.copy(
+                            deletingFile = false,
+                            error = err.toUserMessage("Failed to delete media file"),
+                        )
+                    }
+                }
         }
     }
 

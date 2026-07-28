@@ -446,14 +446,44 @@ fun PlayerScreen(
                             )
                         }
                         Column(modifier = Modifier.weight(1f)) {
+                            val titleText = buildPlayerTitle(
+                                title = state.mediaTitle,
+                                year = state.mediaYear,
+                                fallback = methodLabel(state.decision?.method)
+                                    ?: stringResource(R.string.player_now_playing),
+                            )
                             Text(
-                                text = methodLabel(state.decision?.method) ?: "Now playing",
+                                text = titleText,
                                 color = Color.White,
                                 style = MaterialTheme.typography.titleMedium,
                                 fontWeight = FontWeight.SemiBold,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis,
                             )
+                            val episodeLabel = if (
+                                state.isEpisode &&
+                                state.seasonNumber != null &&
+                                state.episodeNumber != null
+                            ) {
+                                stringResource(
+                                    R.string.player_season_episode,
+                                    state.seasonNumber!!,
+                                    state.episodeNumber!!,
+                                )
+                            } else {
+                                null
+                            }
+                            val method = methodLabel(state.decision?.method)
+                            val subtitle = listOfNotNull(episodeLabel, method).joinToString(" · ")
+                            if (subtitle.isNotBlank()) {
+                                Text(
+                                    text = subtitle,
+                                    color = Color.White.copy(alpha = 0.75f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                )
+                            }
                         }
                     }
                 }
@@ -948,6 +978,11 @@ private fun methodLabel(method: String?): String? = when (method) {
     "DirectStream" -> "Direct Stream"
     "Transcode" -> "Transcode"
     else -> method
+}
+
+private fun buildPlayerTitle(title: String?, year: Int?, fallback: String): String {
+    val base = title?.takeIf { it.isNotBlank() } ?: return fallback
+    return if (year != null && year > 0) "$base ($year)" else base
 }
 
 private fun formatTime(ms: Long): String {

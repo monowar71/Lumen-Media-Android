@@ -48,7 +48,7 @@ client_android/
 
 ## TV-специфика
 
-- Compose for TV: `TvLazyGrid`/`TvLazyRow`, состояния фокуса, D-pad навигация.
+- Compose for TV: `TvLazyGrid`/`TvLazyRow`, состояния фокуса, D-pad навигация; long-press на эпизоде открывает меню действий (watched / offline / delete).
 - Обработка пульта (media keys), корректный focus order, крупные постеры.
 - Баннер-иконка и `leanback`-фильтр в манифесте для попадания в Android TV launcher.
 

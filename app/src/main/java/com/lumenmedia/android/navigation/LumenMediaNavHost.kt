@@ -145,6 +145,7 @@ fun LumenMediaNavHost(
                 onPlay = { itemId, resumeMs, isEpisode ->
                     navController.navigate(Routes.player(itemId, resumeMs, isEpisode))
                 },
+                onLeave = { navController.popBackStack() },
             )
         }
 

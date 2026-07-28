@@ -381,3 +381,10 @@ data class ServerSettingsDto(
     val serverName: String? = null,
     val metadataLanguage: String? = null,
 )
+
+@Serializable
+data class DeleteMediaFileResponse(
+    val deletedFiles: Int = 0,
+    val sourcesRemoved: Int = 0,
+    val mediaRemoved: Boolean = false,
+)

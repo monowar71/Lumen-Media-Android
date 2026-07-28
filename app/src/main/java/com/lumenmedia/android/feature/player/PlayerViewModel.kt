@@ -18,6 +18,7 @@ import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.SetQualityRequest
+import com.lumenmedia.android.core.network.ItemDetailResult
 import com.lumenmedia.android.core.network.LumenMediaRepository
 import com.lumenmedia.android.core.network.toUserMessage
 import com.lumenmedia.android.core.offline.OfflineDownloadManager
@@ -61,6 +62,12 @@ data class PlayerUiState(
     val playing: Boolean = false,
     val seeking: Boolean = false,
     val offline: Boolean = false,
+    /** Movie or series title shown in player chrome. */
+    val mediaTitle: String? = null,
+    val mediaYear: Int? = null,
+    val seasonNumber: Int? = null,
+    val episodeNumber: Int? = null,
+    val isEpisode: Boolean = false,
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -78,8 +85,9 @@ class PlayerViewModel @Inject constructor(
     private val initialResumeMs: Long = savedStateHandle.get<String>("resumeMs")?.toLongOrNull()
         ?: savedStateHandle.get<Long>("resumeMs")
         ?: 0L
+    private val isEpisodeArg: Boolean = savedStateHandle.get<Boolean>("isEpisode") ?: false
 
-    private val _state = MutableStateFlow(PlayerUiState())
+    private val _state = MutableStateFlow(PlayerUiState(isEpisode = isEpisodeArg))
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
 
     // Whether player chrome is on screen. Drives the ticker rate: smooth 250ms
@@ -119,7 +127,65 @@ class PlayerViewModel @Inject constructor(
     init {
         player.addListener(playerListener)
         startTicker()
+        loadMediaMeta()
         startPlayback(initialResumeMs)
+    }
+
+    private fun loadMediaMeta() {
+        viewModelScope.launch {
+            val offline = offlineDownloadManager.stateFor(itemId)
+            if (offline != null) {
+                _state.update {
+                    it.copy(
+                        mediaTitle = offline.seriesTitle,
+                        seasonNumber = offline.seasonNumber,
+                        episodeNumber = offline.episodeNumber,
+                        isEpisode = true,
+                    )
+                }
+                return@launch
+            }
+
+            if (isEpisodeArg) {
+                runCatching { repository.episode(itemId) }
+                    .onSuccess { episode ->
+                        val seriesDetail = runCatching { repository.itemDetail(episode.seriesId) }.getOrNull()
+                        val series = (seriesDetail as? ItemDetailResult.Series)?.value
+                        _state.update {
+                            it.copy(
+                                mediaTitle = series?.title ?: episode.title,
+                                mediaYear = series?.year,
+                                seasonNumber = episode.seasonNumber,
+                                episodeNumber = episode.episodeNumber,
+                                isEpisode = true,
+                            )
+                        }
+                    }
+                return@launch
+            }
+
+            runCatching { repository.itemDetail(itemId) }
+                .onSuccess { detail ->
+                    when (detail) {
+                        is ItemDetailResult.Movie -> _state.update {
+                            it.copy(
+                                mediaTitle = detail.value.title,
+                                mediaYear = detail.value.year,
+                                seasonNumber = null,
+                                episodeNumber = null,
+                                isEpisode = false,
+                            )
+                        }
+                        is ItemDetailResult.Series -> _state.update {
+                            it.copy(
+                                mediaTitle = detail.value.title,
+                                mediaYear = detail.value.year,
+                                isEpisode = false,
+                            )
+                        }
+                    }
+                }
+        }
     }
 
     fun startPlayback(resumeMs: Long, qualityId: String? = null, mode: String? = null) {

@@ -1,6 +1,7 @@
 package com.lumenmedia.android.core.network
 
 import com.lumenmedia.android.core.model.CreateLibraryRequest
+import com.lumenmedia.android.core.model.DeleteMediaFileResponse
 import com.lumenmedia.android.core.model.EpisodeDetail
 import com.lumenmedia.android.core.model.EpisodeSummary
 import com.lumenmedia.android.core.model.HomeResponse
@@ -78,6 +79,7 @@ class LumenMediaRepository @Inject constructor(
             ItemDetailResult.Movie(json.decodeFromJsonElement(MovieDetail.serializer(), element))
         }
     }
+    suspend fun deleteMediaFile(id: String): DeleteMediaFileResponse = api.deleteMediaFile(id)
     suspend fun seasons(seriesId: String): List<Season> = api.seasons(seriesId).items
     suspend fun episodes(seasonId: String): List<EpisodeSummary> = api.episodes(seasonId).items
     suspend fun episode(id: String): EpisodeDetail = api.episode(id)

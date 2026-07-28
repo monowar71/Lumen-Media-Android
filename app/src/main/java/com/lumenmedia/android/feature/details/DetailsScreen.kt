@@ -28,7 +28,11 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.ExperimentalComposeUiApi
 import androidx.compose.ui.Modifier
@@ -41,7 +45,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.runtime.remember
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -70,14 +73,24 @@ import com.lumenmedia.android.core.offline.OfflineEpisodeState
 import com.lumenmedia.android.core.util.absoluteUrl
 import com.lumenmedia.android.core.util.artworkUrl
 import com.lumenmedia.android.feature.library.LibraryGenre
+import kotlinx.coroutines.flow.collectLatest
 
 @Composable
 fun DetailsScreen(
     onPlay: (itemId: String, resumeMs: Long, isEpisode: Boolean) -> Unit,
+    onLeave: () -> Unit = {},
     viewModel: DetailsViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
     val tv = isTvDevice()
+
+    LaunchedEffect(viewModel) {
+        viewModel.events.collectLatest { event ->
+            when (event) {
+                DetailsEvent.LeaveDetails -> onLeave()
+            }
+        }
+    }
 
     if (state.loading) {
         FullPageLoading()
@@ -98,6 +111,13 @@ fun DetailsScreen(
             runtimeMs = movie.runtimeMs,
         )
         val cast = movie.people.orEmpty()
+        val movieActions = buildMovieMediaActions(
+            canDelete = state.isAdmin && movie.mediaSources.isNotEmpty(),
+            deletingFile = state.deletingFile,
+            deleteFileLabel = stringResource(R.string.details_delete_file),
+            deletingLabel = stringResource(R.string.details_deleting_file),
+            onDeleteFile = viewModel::deleteMovieFile,
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -138,6 +158,7 @@ fun DetailsScreen(
                     onToggleWatched = viewModel::toggleMovieWatched,
                     watchedBusy = state.markingWatched,
                     trailerUrl = movie.trailerUrl,
+                    mediaActions = movieActions,
                     tv = tv,
                 )
             }
@@ -267,12 +288,15 @@ fun DetailsScreen(
                     baseUrl = state.baseUrl,
                     tv = tv,
                     watchedBusy = state.markingWatched,
+                    deletingFile = state.deletingFile,
+                    isAdmin = state.isAdmin,
                     offline = state.offlineByEpisodeId[ep.id],
                     onPlay = { onPlay(ep.id, ep.userData.playbackPositionMs ?: 0L, true) },
                     onToggleWatched = { viewModel.toggleEpisodeWatched(ep.id) },
                     onDownload = { viewModel.downloadEpisode(ep.id) },
                     onCancelDownload = { viewModel.cancelOfflineEpisode(ep.id) },
                     onRemoveDownload = { viewModel.removeOfflineEpisode(ep.id) },
+                    onDeleteFile = { viewModel.deleteEpisodeFile(ep.id) },
                 )
             }
             item(key = "bottom-spacer") {
@@ -326,12 +350,15 @@ private fun EpisodeRow(
     baseUrl: String,
     tv: Boolean,
     watchedBusy: Boolean,
+    deletingFile: Boolean,
+    isAdmin: Boolean,
     offline: OfflineEpisodeState?,
     onPlay: () -> Unit,
     onToggleWatched: () -> Unit,
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
+    onDeleteFile: () -> Unit,
 ) {
     val thumb = artworkUrl(
         baseUrl = baseUrl,
@@ -347,6 +374,37 @@ private fun EpisodeRow(
     val shape = RoundedCornerShape(FpDimens.radiusMd)
     val episodeTitle = episode.title
         ?: stringResource(R.string.details_episode_n, episode.episodeNumber)
+    val actions = buildEpisodeMediaActions(
+        watched = watched,
+        watchedBusy = watchedBusy,
+        deletingFile = deletingFile,
+        isAdmin = isAdmin,
+        offline = offline,
+        markWatchedLabel = stringResource(R.string.details_mark_watched),
+        markUnwatchedLabel = stringResource(R.string.details_mark_unwatched),
+        downloadLabel = stringResource(R.string.details_download),
+        cancelDownloadLabel = stringResource(R.string.details_cancel_download),
+        removeDownloadLabel = stringResource(R.string.details_remove_download),
+        retryDownloadLabel = stringResource(R.string.state_try_again),
+        deleteFileLabel = stringResource(R.string.details_delete_file),
+        deletingLabel = stringResource(R.string.details_deleting_file),
+        onToggleWatched = onToggleWatched,
+        onDownload = onDownload,
+        onCancelDownload = onCancelDownload,
+        onRemoveDownload = onRemoveDownload,
+        onDeleteFile = onDeleteFile,
+    )
+    var tvActionsOpen by remember { mutableStateOf(false) }
+    val actionsTitle = "S${episode.seasonNumber}E${episode.episodeNumber}  ·  $episodeTitle"
+
+    if (tv && tvActionsOpen) {
+        MediaFileActionsDialog(
+            title = actionsTitle,
+            actions = actions,
+            onDismiss = { tvActionsOpen = false },
+        )
+    }
+
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -354,7 +412,16 @@ private fun EpisodeRow(
                 horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone,
                 vertical = FpDimens.space4,
             )
-            .tvFocusable(onClick = onPlay, scaleFocused = 1.015f, shape = shape)
+            .tvFocusable(
+                onClick = onPlay,
+                onLongClick = if (tv) {
+                    { tvActionsOpen = true }
+                } else {
+                    null
+                },
+                scaleFocused = 1.015f,
+                shape = shape,
+            )
             .clip(shape)
             .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.65f))
             .padding(FpDimens.space10),
@@ -385,7 +452,7 @@ private fun EpisodeRow(
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Text(
-                    text = "S${episode.seasonNumber}E${episode.episodeNumber}  ·  $episodeTitle",
+                    text = actionsTitle,
                     fontWeight = FontWeight.SemiBold,
                     style = MaterialTheme.typography.titleSmall,
                     maxLines = 1,
@@ -409,44 +476,48 @@ private fun EpisodeRow(
                     modifier = Modifier.padding(top = FpDimens.space2),
                 )
             }
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(FpDimens.space4),
-                modifier = Modifier.padding(top = FpDimens.space4),
-            ) {
-                FpButton(
-                    onClick = onToggleWatched,
-                    enabled = !watchedBusy,
-                    label = if (watched) {
-                        stringResource(R.string.details_mark_unwatched)
-                    } else {
-                        stringResource(R.string.details_watched)
-                    },
-                    variant = FpButtonVariant.Ghost,
-                    compact = true,
-                )
-                when (offline?.status) {
-                    CachedEpisodeStatus.Ready -> FpButton(
-                        onClick = onRemoveDownload,
-                        label = stringResource(R.string.details_remove_download),
-                        variant = FpButtonVariant.Ghost,
-                        compact = true,
-                    )
-                    CachedEpisodeStatus.Queued, CachedEpisodeStatus.Downloading -> FpButton(
-                        onClick = onCancelDownload,
-                        label = stringResource(R.string.details_cancel_download),
-                        variant = FpButtonVariant.Ghost,
-                        compact = true,
-                    )
-                    CachedEpisodeStatus.Failed, null -> FpButton(
-                        onClick = onDownload,
-                        label = if (offline?.status == CachedEpisodeStatus.Failed) {
-                            stringResource(R.string.state_try_again)
+            if (!tv) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(FpDimens.space4),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.padding(top = FpDimens.space4),
+                ) {
+                    FpButton(
+                        onClick = onToggleWatched,
+                        enabled = !watchedBusy,
+                        label = if (watched) {
+                            stringResource(R.string.details_mark_unwatched)
                         } else {
-                            stringResource(R.string.details_download)
+                            stringResource(R.string.details_watched)
                         },
                         variant = FpButtonVariant.Ghost,
                         compact = true,
                     )
+                    when (offline?.status) {
+                        CachedEpisodeStatus.Ready -> FpButton(
+                            onClick = onRemoveDownload,
+                            label = stringResource(R.string.details_remove_download),
+                            variant = FpButtonVariant.Ghost,
+                            compact = true,
+                        )
+                        CachedEpisodeStatus.Queued, CachedEpisodeStatus.Downloading -> FpButton(
+                            onClick = onCancelDownload,
+                            label = stringResource(R.string.details_cancel_download),
+                            variant = FpButtonVariant.Ghost,
+                            compact = true,
+                        )
+                        CachedEpisodeStatus.Failed, null -> FpButton(
+                            onClick = onDownload,
+                            label = if (offline?.status == CachedEpisodeStatus.Failed) {
+                                stringResource(R.string.state_try_again)
+                            } else {
+                                stringResource(R.string.details_download)
+                            },
+                            variant = FpButtonVariant.Ghost,
+                            compact = true,
+                        )
+                    }
+                    MediaFileActionsButton(actions = actions.filter { it.id == "delete" })
                 }
             }
         }
@@ -502,6 +573,7 @@ private fun DetailScaffold(
     watchedLabel: String? = null,
     onToggleWatched: (() -> Unit)? = null,
     watchedBusy: Boolean = false,
+    mediaActions: List<MediaFileActionItem> = emptyList(),
     focusableHeader: Boolean = false,
     /** When set (TV), D-pad Down from the action row lands on season chips. */
     actionsDownFocus: FocusRequester? = null,
@@ -527,7 +599,8 @@ private fun DetailScaffold(
     val hasActions = (onPlay != null && playLabel != null) ||
         (onPlayFromStart != null && playFromStartLabel != null) ||
         (onToggleWatched != null && watchedLabel != null) ||
-        openTrailer != null
+        openTrailer != null ||
+        mediaActions.isNotEmpty()
     val shape = RoundedCornerShape(if (tv) FpDimens.radiusLg else 0.dp)
 
     Box(
@@ -683,6 +756,7 @@ private fun DetailScaffold(
                             if (!tv) Modifier.horizontalScroll(rememberScrollState()) else Modifier,
                         ),
                     horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
+                    verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (onPlay != null && playLabel != null) {
                         FpButton(onClick = onPlay, label = playLabel)
@@ -708,6 +782,9 @@ private fun DetailScaffold(
                             label = stringResource(R.string.details_trailer),
                             variant = FpButtonVariant.Secondary,
                         )
+                    }
+                    if (mediaActions.isNotEmpty()) {
+                        MediaFileActionsButton(actions = mediaActions)
                     }
                 }
             }

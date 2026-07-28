@@ -131,6 +131,11 @@
     <string name="details_offline_ready">Downloaded</string>
     <string name="details_queued">Queued</string>
     <string name="details_failed">Failed</string>
+    <string name="details_more_actions">More actions</string>
+    <string name="details_delete_file">Delete file</string>
+    <string name="details_deleting_file">Deleting…</string>
+    <string name="details_delete_file_title">Delete file?</string>
+    <string name="details_delete_file_confirm">Delete this video file from the server? This cannot be undone.</string>
 
     <!-- player -->
     <string name="player_back">Back</string>
@@ -153,6 +158,8 @@
     <string name="player_seek_failed">Could not seek</string>
     <string name="player_audio_failed">Could not change audio track</string>
     <string name="player_auto">Auto</string>
+    <string name="player_now_playing">Now playing</string>
+    <string name="player_season_episode">S%1$dE%2$d</string>
 
     <!-- settings -->
     <string name="settings_title">Settings</string>

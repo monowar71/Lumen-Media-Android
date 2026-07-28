@@ -1,6 +1,7 @@
 package com.lumenmedia.android.core.network
 
 import com.lumenmedia.android.core.model.CreateLibraryRequest
+import com.lumenmedia.android.core.model.DeleteMediaFileResponse
 import com.lumenmedia.android.core.model.EpisodeDetail
 import com.lumenmedia.android.core.model.EpisodeSummary
 import com.lumenmedia.android.core.model.HomeResponse
@@ -84,6 +85,9 @@ interface LumenMediaApi {
 
     @GET("api/v1/items/{id}")
     suspend fun item(@Path("id") id: String): JsonElement
+
+    @DELETE("api/v1/items/{id}/file")
+    suspend fun deleteMediaFile(@Path("id") id: String): DeleteMediaFileResponse
 
     @GET("api/v1/series/{id}/seasons")
     suspend fun seasons(@Path("id") id: String): PagedResult<Season>

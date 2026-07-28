@@ -1,7 +1,10 @@
 package com.lumenmedia.android.feature.details
 
+import app.cash.turbine.test
 import androidx.lifecycle.SavedStateHandle
+import com.lumenmedia.android.core.model.DeleteMediaFileResponse
 import com.lumenmedia.android.core.model.EpisodeSummary
+import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.MovieDetail
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.ProgressResponse
@@ -10,7 +13,9 @@ import com.lumenmedia.android.core.model.UserData
 import com.lumenmedia.android.core.network.LumenMediaRepository
 import com.lumenmedia.android.core.network.ItemDetailResult
 import com.lumenmedia.android.core.preferences.AppSettings
+import com.lumenmedia.android.core.preferences.AuthSession
 import com.lumenmedia.android.core.preferences.LibrarySort
+import com.lumenmedia.android.core.preferences.SessionStore
 import com.lumenmedia.android.core.preferences.SettingsRepository
 import com.google.common.truth.Truth.assertThat
 import io.mockk.coEvery
@@ -49,6 +54,15 @@ class DetailsViewModelTest {
             ),
         )
     }
+    private val sessionStore = mockk<SessionStore> {
+        every { readSession() } returns AuthSession(
+            accessToken = "a",
+            refreshToken = "r",
+            userId = "u1",
+            username = "admin",
+            role = "Admin",
+        )
+    }
     private val offlineDownloadManager = mockk<com.lumenmedia.android.core.offline.OfflineDownloadManager>(relaxed = true) {
         every { entries } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
     }
@@ -62,6 +76,14 @@ class DetailsViewModelTest {
     fun tearDown() {
         Dispatchers.resetMain()
     }
+
+    private fun createVm(itemId: String = "m1") = DetailsViewModel(
+        SavedStateHandle(mapOf("itemId" to itemId)),
+        repository,
+        settingsRepository,
+        sessionStore,
+        offlineDownloadManager,
+    )
 
     @Test
     fun toggleMovieWatched_marks_via_progress_api() = runTest {
@@ -77,12 +99,7 @@ class DetailsViewModelTest {
             watched = true,
         )
 
-        val vm = DetailsViewModel(
-            SavedStateHandle(mapOf("itemId" to "m1")),
-            repository,
-            settingsRepository,
-            offlineDownloadManager,
-        )
+        val vm = createVm()
         advanceUntilIdle()
 
         vm.toggleMovieWatched()
@@ -92,6 +109,34 @@ class DetailsViewModelTest {
         coVerify { repository.putProgress("m1", capture(body)) }
         assertThat(body.captured.watched).isTrue()
         assertThat(vm.state.value.movie?.userData?.watched).isTrue()
+    }
+
+    @Test
+    fun deleteMovieFile_calls_api_and_leaves_when_removed() = runTest {
+        val movie = MovieDetail(
+            id = "m1",
+            kind = "Movie",
+            title = "Matrix",
+            mediaSources = listOf(MediaSource(id = "src1")),
+            userData = UserData(watched = false),
+        )
+        coEvery { repository.itemDetail("m1") } returns ItemDetailResult.Movie(movie)
+        coEvery { repository.deleteMediaFile("m1") } returns DeleteMediaFileResponse(
+            deletedFiles = 1,
+            sourcesRemoved = 1,
+            mediaRemoved = true,
+        )
+
+        val vm = createVm()
+        advanceUntilIdle()
+        assertThat(vm.state.value.isAdmin).isTrue()
+
+        vm.events.test {
+            vm.deleteMovieFile()
+            advanceUntilIdle()
+            assertThat(awaitItem()).isEqualTo(DetailsEvent.LeaveDetails)
+        }
+        coVerify { repository.deleteMediaFile("m1") }
     }
 
     @Test

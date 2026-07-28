@@ -2,9 +2,11 @@ package com.lumenmedia.android.core.designsystem
 
 import android.content.res.Configuration
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.padding
@@ -56,9 +58,11 @@ val TvContentPadding = PaddingValues(
     vertical = FpDimens.contentPadVTv,
 )
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 fun Modifier.tvFocusable(
     onClick: (() -> Unit)? = null,
+    onLongClick: (() -> Unit)? = null,
     scaleFocused: Float = FpDimens.focusScale,
     borderWidth: Dp = FpDimens.focusBorder,
     borderColor: Color = FpColors.Accent,
@@ -82,8 +86,13 @@ fun Modifier.tvFocusable(
             shape = shape,
         )
         .then(
-            if (onClick != null) Modifier.clickable(onClick = onClick)
-            else Modifier.focusable(),
+            when {
+                onClick != null || onLongClick != null -> Modifier.combinedClickable(
+                    onClick = { onClick?.invoke() },
+                    onLongClick = onLongClick,
+                )
+                else -> Modifier.focusable()
+            },
         )
 }
 
