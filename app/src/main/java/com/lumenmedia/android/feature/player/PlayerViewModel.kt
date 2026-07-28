@@ -333,7 +333,10 @@ class PlayerViewModel @Inject constructor(
             is PlaybackSource.Direct -> source.url
             is PlaybackSource.Hls -> source.url
         }
+        // Only the active sidecar — ExoPlayer would otherwise fetch every deliveryUrl at once
+        // and stall HLS behind long-running server-side VTT extractions from large MKVs.
         val subtitleConfigs = decision.subtitleStreams.mapNotNull { stream ->
+            if (stream.id != selectedSubtitleId) return@mapNotNull null
             if (stream.deliveryUrl.isBlank()) return@mapNotNull null
             val mime = when (stream.format?.lowercase()) {
                 "srt" -> MimeTypes.APPLICATION_SUBRIP
@@ -345,9 +348,7 @@ class PlayerViewModel @Inject constructor(
                 .setLanguage(stream.language)
                 .setId(stream.id)
                 .setLabel(stream.title?.takeIf { it.isNotBlank() } ?: stream.language ?: stream.id)
-                .setSelectionFlags(
-                    if (stream.id == selectedSubtitleId) C.SELECTION_FLAG_DEFAULT else 0,
-                )
+                .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                 .build()
         }
         val mediaItem = MediaItem.Builder()
@@ -579,18 +580,25 @@ class PlayerViewModel @Inject constructor(
     fun changeSubtitle(subtitleId: String?) {
         if (offlinePlayback) return
         val decision = _state.value.decision
+        val baseUrl = _state.value.baseUrl
         _state.update { it.copy(selectedSubtitleId = subtitleId) }
         if (decision == null) return
-        // Off: just disable text tracks client-side.
+        // Off: drop sidecar without restarting playback.
         if (subtitleId == null) {
-            applyTextTrackSelection(null)
+            val position = absolutePosition()
+            val source = resolvePlaybackSource(decision, baseUrl, cacheToken.toString())
+            attachSource(source, position, decision, baseUrl, selectedSubtitleId = null)
             return
         }
-        // Prefer a local text-track toggle for sidecar WebVTT; re-decision for server remap/burn-in.
+        // Sidecar WebVTT: swap the single subtitle config in-place (no new transcode session).
         val hasSidecar = decision.subtitleStreams.any { it.id == subtitleId && it.deliveryUrl.isNotBlank() }
         if (hasSidecar) {
-            applyTextTrackSelection(subtitleId)
+            val position = absolutePosition()
+            val source = resolvePlaybackSource(decision, baseUrl, cacheToken.toString())
+            attachSource(source, position, decision, baseUrl, selectedSubtitleId = subtitleId)
+            return
         }
+        // Bitmap / burn-in: needs a server-side remap.
         val position = absolutePosition()
         val previous = sessionId
         viewModelScope.launch {
@@ -619,12 +627,12 @@ class PlayerViewModel @Inject constructor(
                 val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
                 attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, subtitleId)
                 next to settings.baseUrl
-            }.onSuccess { (next, baseUrl) ->
+            }.onSuccess { (next, baseUrlNext) ->
                 _state.update {
                     it.copy(
                         decision = next,
                         selectedQualityId = next.selectedQualityId,
-                        baseUrl = baseUrl,
+                        baseUrl = baseUrlNext,
                         error = null,
                     )
                 }

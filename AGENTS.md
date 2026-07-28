@@ -40,6 +40,8 @@ client_android/
 - Перед стартом: `POST /playback/decision` c device profile (поддерживаемые кодеки берём из `MediaCodecList`/`CodecCapabilities`, разрешение, HDR).
 - DirectPlay → URL; иначе HLS `index.m3u8` через `HlsMediaSource`.
 - Выбор дорожек через `TrackSelector`; субтитры — WebVTT.
+  В `MediaItem.SubtitleConfiguration` передавать только **активную** sidecar-дорожку
+  (не все `deliveryUrl` сразу) — иначе ExoPlayer параллельно тянет все VTT и голодает HLS.
 - **Выбор качества:** UI-селектор со списком `availableQualities`. Auto → `master.m3u8` (ABR ExoPlayer). Manual → `TrackSelectionParameters` (`setMaxVideoBitrate`/`setMaxVideoSize`/override дорожки). Смена на лету: `set-quality` + смена `MediaItem`/параметров + seek на позицию.
 - **Сеть/кап:** раздельные капы для Wi-Fi/Ethernet и сотовой; тип сети через `ConnectivityManager`/`NetworkCapabilities`; подставлять актуальный `maxBitrateKbps`.
 - **Android TV 100 Мбит/с:** учитывать, что Direct Play 4K-remux может насыщать порт — Auto или кап решают это (сервер транскодирует вниз).
