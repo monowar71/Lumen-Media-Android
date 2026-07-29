@@ -13,7 +13,6 @@ import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.PlaybackDecisionRequest
@@ -143,6 +142,16 @@ class PlayerViewModel @Inject constructor(
                     buffering = playbackState == Player.STATE_BUFFERING,
                     playing = player.isPlaying,
                 )
+            }
+        }
+
+        override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            val id = _state.value.selectedSubtitleId ?: return
+            val textAlreadySelected = tracks.groups.any { group ->
+                group.type == C.TRACK_TYPE_TEXT && group.isSelected
+            }
+            if (!textAlreadySelected) {
+                applyTextTrackSelection(id)
             }
         }
     }
@@ -449,33 +458,26 @@ class PlayerViewModel @Inject constructor(
             is PlaybackSource.Direct -> source.url
             is PlaybackSource.Hls -> source.url
         }
-        // Only the active sidecar — ExoPlayer would otherwise fetch every deliveryUrl at once
-        // and stall HLS behind long-running server-side VTT extractions from large MKVs.
+        // Only the active sidecar. Server always delivers WebVTT (.vtt) even for SRT/ASS sources.
+        // HlsMediaSource.Factory ignores MediaItem.SubtitleConfiguration — use DefaultMediaSourceFactory.
         val subtitleConfigs = decision.subtitleStreams.mapNotNull { stream ->
             if (stream.id != selectedSubtitleId) return@mapNotNull null
             if (stream.deliveryUrl.isBlank()) return@mapNotNull null
-            val mime = when (stream.format?.lowercase()) {
-                "srt" -> MimeTypes.APPLICATION_SUBRIP
-                "ass", "ssa" -> "text/x-ssa"
-                else -> MimeTypes.TEXT_VTT
-            }
             MediaItem.SubtitleConfiguration.Builder(Uri.parse(absoluteUrl(baseUrl, stream.deliveryUrl)))
-                .setMimeType(mime)
+                .setMimeType(MimeTypes.TEXT_VTT)
                 .setLanguage(stream.language)
                 .setId(stream.id)
                 .setLabel(stream.title?.takeIf { it.isNotBlank() } ?: stream.language ?: stream.id)
                 .setSelectionFlags(C.SELECTION_FLAG_DEFAULT)
                 .build()
         }
-        val mediaItem = MediaItem.Builder()
+        val mediaItemBuilder = MediaItem.Builder()
             .setUri(uri)
             .setSubtitleConfigurations(subtitleConfigs)
-            .build()
-        val mediaSource = if (source is PlaybackSource.Hls) {
-            HlsMediaSource.Factory(factory).createMediaSource(mediaItem)
-        } else {
-            DefaultMediaSourceFactory(factory).createMediaSource(mediaItem)
+        if (source is PlaybackSource.Hls) {
+            mediaItemBuilder.setMimeType(MimeTypes.APPLICATION_M3U8)
         }
+        val mediaSource = DefaultMediaSourceFactory(factory).createMediaSource(mediaItemBuilder.build())
         player.setMediaSource(mediaSource)
         player.prepare()
         applyTextTrackSelection(selectedSubtitleId)

@@ -204,6 +204,8 @@ data class MovieDetail(
     val genres: List<String>? = null,
     val people: List<Person>? = null,
     val trailerUrl: String? = null,
+    /** Cached ambient theme (`/api/v1/items/{id}/theme`) when ThemerrDB matched. */
+    val themeUrl: String? = null,
     val artwork: ArtworkSet = ArtworkSet(),
     val mediaSources: List<MediaSource> = emptyList(),
     val userData: UserData = UserData(),
@@ -223,6 +225,8 @@ data class SeriesDetail(
     val genres: List<String>? = null,
     val people: List<Person>? = null,
     val trailerUrl: String? = null,
+    /** Cached ambient theme (`/api/v1/items/{id}/theme`) when ThemerrDB matched. */
+    val themeUrl: String? = null,
     val seasonCount: Int = 0,
     val episodeCount: Int = 0,
     val artwork: ArtworkSet = ArtworkSet(),

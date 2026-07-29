@@ -34,6 +34,7 @@ data class DetailsUiState(
     val loading: Boolean = true,
     val error: String? = null,
     val baseUrl: String = "",
+    val accessToken: String? = null,
     val movie: MovieDetail? = null,
     val series: SeriesDetail? = null,
     val seasons: List<Season> = emptyList(),
@@ -81,6 +82,7 @@ class DetailsViewModel @Inject constructor(
             _state.update { it.copy(loading = true, error = null) }
             val baseUrl = settingsRepository.settings.first().baseUrl
             val isAdmin = sessionStore.readSession()?.role.equals("Admin", ignoreCase = true)
+            val accessToken = sessionStore.accessToken
             runCatching { repository.itemDetail(itemId) }
                 .onSuccess { detail ->
                     when (detail) {
@@ -92,6 +94,7 @@ class DetailsViewModel @Inject constructor(
                                 seasons = emptyList(),
                                 episodes = emptyList(),
                                 baseUrl = baseUrl,
+                                accessToken = accessToken,
                                 isAdmin = isAdmin,
                             )
                         }
@@ -108,6 +111,7 @@ class DetailsViewModel @Inject constructor(
                                     selectedSeasonId = first?.id,
                                     episodes = episodes,
                                     baseUrl = baseUrl,
+                                    accessToken = accessToken,
                                     isAdmin = isAdmin,
                                 )
                             }

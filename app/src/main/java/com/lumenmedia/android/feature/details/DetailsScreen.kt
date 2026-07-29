@@ -103,6 +103,13 @@ fun DetailsScreen(
         return
     }
 
+    val themeUrl = state.movie?.themeUrl ?: state.series?.themeUrl
+    AmbientThemeEffect(
+        themeUrl = themeUrl,
+        baseUrl = state.baseUrl,
+        accessToken = state.accessToken,
+    )
+
     val movie = state.movie
     if (movie != null) {
         val resume = movie.userData.playbackPositionMs ?: 0L

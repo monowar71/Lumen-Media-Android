@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.6] - 2026-07-29
+
+### Added
+
+- Ambient theme audio on movie/series detail when the server exposes `themeUrl` (ThemerrDB cache).
+
+### Fixed
+
+- Sidecar subtitles on HLS: use `DefaultMediaSourceFactory` (HlsMediaSource ignored `SubtitleConfiguration`), always treat server delivery as WebVTT, and re-select text tracks when groups become available.
+
 ## [0.1.5] - 2026-07-29
 
 ### Fixed
@@ -62,7 +72,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
 
-[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.5...HEAD
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.6...HEAD
+[0.1.6]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.6
 [0.1.5]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.5
 [0.1.4]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.4
 [0.1.3]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.3
