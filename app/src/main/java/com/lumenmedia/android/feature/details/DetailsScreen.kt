@@ -150,12 +150,26 @@ fun DetailsScreen(
                     } else {
                         null
                     },
-                    watchedLabel = if (watched) {
+                    watchedLabel = if (!watched) {
+                        stringResource(R.string.details_mark_watched)
+                    } else {
+                        null
+                    },
+                    onToggleWatched = if (!watched) {
+                        { viewModel.setMovieWatched(true) }
+                    } else {
+                        null
+                    },
+                    unwatchedLabel = if (DetailsViewModel.canMarkUnwatched(watched, resume)) {
                         stringResource(R.string.details_mark_unwatched)
                     } else {
-                        stringResource(R.string.details_mark_watched)
+                        null
                     },
-                    onToggleWatched = viewModel::toggleMovieWatched,
+                    onMarkUnwatched = if (DetailsViewModel.canMarkUnwatched(watched, resume)) {
+                        { viewModel.setMovieWatched(false) }
+                    } else {
+                        null
+                    },
                     watchedBusy = state.markingWatched,
                     trailerUrl = movie.trailerUrl,
                     mediaActions = movieActions,
@@ -212,12 +226,26 @@ fun DetailsScreen(
                     onPlay = playTarget?.let { ep ->
                         { onPlay(ep.id, resume, true) }
                     },
-                    watchedLabel = if (seriesWatched) {
+                    watchedLabel = if (!seriesWatched) {
+                        stringResource(R.string.details_mark_watched)
+                    } else {
+                        null
+                    },
+                    onToggleWatched = if (!seriesWatched) {
+                        { viewModel.setSeriesWatched(true) }
+                    } else {
+                        null
+                    },
+                    unwatchedLabel = if (DetailsViewModel.seriesCanMarkUnwatched(series)) {
                         stringResource(R.string.details_mark_unwatched)
                     } else {
-                        stringResource(R.string.details_mark_watched)
+                        null
                     },
-                    onToggleWatched = viewModel::toggleSeriesWatched,
+                    onMarkUnwatched = if (DetailsViewModel.seriesCanMarkUnwatched(series)) {
+                        { viewModel.setSeriesWatched(false) }
+                    } else {
+                        null
+                    },
                     watchedBusy = state.markingWatched,
                     trailerUrl = series.trailerUrl,
                     tv = tv,
@@ -247,17 +275,24 @@ fun DetailsScreen(
                         horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
                         modifier = Modifier.padding(horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone),
                     ) {
-                        FpButton(
-                            onClick = viewModel::toggleSeasonWatched,
-                            enabled = !state.markingWatched,
-                            label = if (seasonWatched) {
-                                stringResource(R.string.details_mark_season_unwatched)
-                            } else {
-                                stringResource(R.string.details_mark_season_watched)
-                            },
-                            variant = FpButtonVariant.Secondary,
-                            compact = true,
-                        )
+                        if (!seasonWatched) {
+                            FpButton(
+                                onClick = { viewModel.setSeasonWatched(true) },
+                                enabled = !state.markingWatched,
+                                label = stringResource(R.string.details_mark_season_watched),
+                                variant = FpButtonVariant.Secondary,
+                                compact = true,
+                            )
+                        }
+                        if (DetailsViewModel.seasonCanMarkUnwatched(state.episodes)) {
+                            FpButton(
+                                onClick = { viewModel.setSeasonWatched(false) },
+                                enabled = !state.markingWatched,
+                                label = stringResource(R.string.details_mark_season_unwatched),
+                                variant = FpButtonVariant.Secondary,
+                                compact = true,
+                            )
+                        }
                         val seasonOffline = seasonOfflineLabel(state.episodes, state.offlineByEpisodeId)
                         FpButton(
                             onClick = viewModel::downloadSeason,
@@ -292,7 +327,8 @@ fun DetailsScreen(
                     isAdmin = state.isAdmin,
                     offline = state.offlineByEpisodeId[ep.id],
                     onPlay = { onPlay(ep.id, ep.userData.playbackPositionMs ?: 0L, true) },
-                    onToggleWatched = { viewModel.toggleEpisodeWatched(ep.id) },
+                    onMarkWatched = { viewModel.setEpisodeWatched(ep.id, true) },
+                    onMarkUnwatched = { viewModel.setEpisodeWatched(ep.id, false) },
                     onDownload = { viewModel.downloadEpisode(ep.id) },
                     onCancelDownload = { viewModel.cancelOfflineEpisode(ep.id) },
                     onRemoveDownload = { viewModel.removeOfflineEpisode(ep.id) },
@@ -354,7 +390,8 @@ private fun EpisodeRow(
     isAdmin: Boolean,
     offline: OfflineEpisodeState?,
     onPlay: () -> Unit,
-    onToggleWatched: () -> Unit,
+    onMarkWatched: () -> Unit,
+    onMarkUnwatched: () -> Unit,
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
@@ -367,6 +404,10 @@ private fun EpisodeRow(
         height = 180,
     )
     val watched = episode.userData.watched == true
+    val canMarkUnwatched = DetailsViewModel.canMarkUnwatched(
+        episode.userData.watched,
+        episode.userData.playbackPositionMs,
+    )
     val progress = progressFraction(
         positionMs = if (watched) 0L else episode.userData.playbackPositionMs,
         runtimeMs = episode.runtimeMs,
@@ -376,6 +417,7 @@ private fun EpisodeRow(
         ?: stringResource(R.string.details_episode_n, episode.episodeNumber)
     val actions = buildEpisodeMediaActions(
         watched = watched,
+        canMarkUnwatched = canMarkUnwatched,
         watchedBusy = watchedBusy,
         deletingFile = deletingFile,
         isAdmin = isAdmin,
@@ -388,7 +430,8 @@ private fun EpisodeRow(
         retryDownloadLabel = stringResource(R.string.state_try_again),
         deleteFileLabel = stringResource(R.string.details_delete_file),
         deletingLabel = stringResource(R.string.details_deleting_file),
-        onToggleWatched = onToggleWatched,
+        onMarkWatched = onMarkWatched,
+        onMarkUnwatched = onMarkUnwatched,
         onDownload = onDownload,
         onCancelDownload = onCancelDownload,
         onRemoveDownload = onRemoveDownload,
@@ -482,17 +525,24 @@ private fun EpisodeRow(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.padding(top = FpDimens.space4),
                 ) {
-                    FpButton(
-                        onClick = onToggleWatched,
-                        enabled = !watchedBusy,
-                        label = if (watched) {
-                            stringResource(R.string.details_mark_unwatched)
-                        } else {
-                            stringResource(R.string.details_watched)
-                        },
-                        variant = FpButtonVariant.Ghost,
-                        compact = true,
-                    )
+                    if (!watched) {
+                        FpButton(
+                            onClick = onMarkWatched,
+                            enabled = !watchedBusy,
+                            label = stringResource(R.string.details_mark_watched),
+                            variant = FpButtonVariant.Ghost,
+                            compact = true,
+                        )
+                    }
+                    if (canMarkUnwatched) {
+                        FpButton(
+                            onClick = onMarkUnwatched,
+                            enabled = !watchedBusy,
+                            label = stringResource(R.string.details_mark_unwatched),
+                            variant = FpButtonVariant.Ghost,
+                            compact = true,
+                        )
+                    }
                     when (offline?.status) {
                         CachedEpisodeStatus.Ready -> FpButton(
                             onClick = onRemoveDownload,
@@ -572,6 +622,8 @@ private fun DetailScaffold(
     onPlayFromStart: (() -> Unit)? = null,
     watchedLabel: String? = null,
     onToggleWatched: (() -> Unit)? = null,
+    unwatchedLabel: String? = null,
+    onMarkUnwatched: (() -> Unit)? = null,
     watchedBusy: Boolean = false,
     mediaActions: List<MediaFileActionItem> = emptyList(),
     focusableHeader: Boolean = false,
@@ -599,6 +651,7 @@ private fun DetailScaffold(
     val hasActions = (onPlay != null && playLabel != null) ||
         (onPlayFromStart != null && playFromStartLabel != null) ||
         (onToggleWatched != null && watchedLabel != null) ||
+        (onMarkUnwatched != null && unwatchedLabel != null) ||
         openTrailer != null ||
         mediaActions.isNotEmpty()
     val shape = RoundedCornerShape(if (tv) FpDimens.radiusLg else 0.dp)
@@ -773,6 +826,14 @@ private fun DetailScaffold(
                             onClick = onToggleWatched,
                             enabled = !watchedBusy,
                             label = watchedLabel,
+                            variant = FpButtonVariant.Secondary,
+                        )
+                    }
+                    if (onMarkUnwatched != null && unwatchedLabel != null) {
+                        FpButton(
+                            onClick = onMarkUnwatched,
+                            enabled = !watchedBusy,
+                            label = unwatchedLabel,
                             variant = FpButtonVariant.Secondary,
                         )
                     }

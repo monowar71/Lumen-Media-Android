@@ -205,6 +205,7 @@ fun DeleteFileConfirmDialog(
 
 fun buildEpisodeMediaActions(
     watched: Boolean,
+    canMarkUnwatched: Boolean,
     watchedBusy: Boolean,
     deletingFile: Boolean,
     isAdmin: Boolean,
@@ -217,20 +218,33 @@ fun buildEpisodeMediaActions(
     retryDownloadLabel: String,
     deleteFileLabel: String,
     deletingLabel: String,
-    onToggleWatched: () -> Unit,
+    onMarkWatched: () -> Unit,
+    onMarkUnwatched: () -> Unit,
     onDownload: () -> Unit,
     onCancelDownload: () -> Unit,
     onRemoveDownload: () -> Unit,
     onDeleteFile: () -> Unit,
 ): List<MediaFileActionItem> = buildList {
-    add(
-        MediaFileActionItem(
-            id = "watched",
-            label = if (watched) markUnwatchedLabel else markWatchedLabel,
-            enabled = !watchedBusy,
-            onClick = onToggleWatched,
-        ),
-    )
+    if (!watched) {
+        add(
+            MediaFileActionItem(
+                id = "mark-watched",
+                label = markWatchedLabel,
+                enabled = !watchedBusy,
+                onClick = onMarkWatched,
+            ),
+        )
+    }
+    if (canMarkUnwatched) {
+        add(
+            MediaFileActionItem(
+                id = "mark-unwatched",
+                label = markUnwatchedLabel,
+                enabled = !watchedBusy,
+                onClick = onMarkUnwatched,
+            ),
+        )
+    }
     when (offline?.status) {
         CachedEpisodeStatus.Ready -> add(
             MediaFileActionItem(

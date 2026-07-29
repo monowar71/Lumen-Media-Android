@@ -10,14 +10,17 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.hls.HlsMediaSource
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.SetQualityRequest
+import com.lumenmedia.android.core.model.UserData
 import com.lumenmedia.android.core.network.ItemDetailResult
 import com.lumenmedia.android.core.network.LumenMediaRepository
 import com.lumenmedia.android.core.network.toUserMessage
@@ -25,6 +28,7 @@ import com.lumenmedia.android.core.offline.OfflineDownloadManager
 import com.lumenmedia.android.core.preferences.SessionStore
 import com.lumenmedia.android.core.preferences.SettingsRepository
 import com.lumenmedia.android.core.util.DeviceProfileFactory
+import com.lumenmedia.android.core.util.MediaFormatLabels
 import com.lumenmedia.android.core.util.NetworkKindDetector
 import com.lumenmedia.android.core.util.PlaybackSource
 import com.lumenmedia.android.core.util.absoluteUrl
@@ -68,6 +72,11 @@ data class PlayerUiState(
     val seasonNumber: Int? = null,
     val episodeNumber: Int? = null,
     val isEpisode: Boolean = false,
+    val videoBadges: List<String> = emptyList(),
+    val audioBadges: List<String> = emptyList(),
+    val networkMbpsLabel: String? = null,
+    val canMarkUnwatched: Boolean = false,
+    val markingUnwatched: Boolean = false,
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -94,20 +103,28 @@ class PlayerViewModel @Inject constructor(
     // updates only while the user can actually see the seek bar.
     private val uiVisible = MutableStateFlow(true)
 
-    val player: ExoPlayer = ExoPlayer.Builder(context).build().also {
-        it.playWhenReady = true
-        it.repeatMode = Player.REPEAT_MODE_OFF
-    }
+    private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
+
+    val player: ExoPlayer = ExoPlayer.Builder(context)
+        .setBandwidthMeter(bandwidthMeter)
+        .build()
+        .also {
+            it.playWhenReady = true
+            it.repeatMode = Player.REPEAT_MODE_OFF
+        }
 
     private var progressJob: Job? = null
     private var pingJob: Job? = null
     private var tickerJob: Job? = null
+    private var bandwidthJob: Job? = null
     private var seekJob: Job? = null
     private var sessionId: String? = null
     private var cacheToken: Long = 0
     private var timelineOffsetMs: Long = 0L
     private var seekEpoch: Long = 0
     private var offlinePlayback: Boolean = false
+    private var mediaSource: MediaSource? = null
+    private var userData: UserData? = null
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -127,8 +144,86 @@ class PlayerViewModel @Inject constructor(
     init {
         player.addListener(playerListener)
         startTicker()
+        startBandwidthLoop()
         loadMediaMeta()
         startPlayback(initialResumeMs)
+    }
+
+    private fun startBandwidthLoop() {
+        bandwidthJob?.cancel()
+        bandwidthJob = viewModelScope.launch {
+            while (isActive) {
+                val estimate = bandwidthMeter.bitrateEstimate
+                val label = MediaFormatLabels.formatNetworkMbps(estimate)
+                _state.update { it.copy(networkMbpsLabel = label) }
+                delay(2_000)
+            }
+        }
+    }
+
+    private fun refreshFormatBadges() {
+        val video = mediaSource?.streams?.firstOrNull { it.kind.equals("Video", ignoreCase = true) }
+        val audioFromDecision = _state.value.decision?.audioStreams
+            ?.firstOrNull { it.id == _state.value.selectedAudioId }
+        val audioStream = mediaSource?.streams
+            ?.firstOrNull { it.kind.equals("Audio", ignoreCase = true) && it.isDefault == true }
+            ?: mediaSource?.streams?.firstOrNull { it.kind.equals("Audio", ignoreCase = true) }
+        val videoBadges = MediaFormatLabels.videoFormatBadges(
+            codec = video?.codec,
+            hdr = video?.hdr,
+            width = video?.width,
+            height = video?.height,
+        )
+        val audioBadges = if (audioFromDecision != null) {
+            MediaFormatLabels.audioFormatBadges(
+                codec = audioFromDecision.codec,
+                channels = audioFromDecision.channels,
+                title = audioFromDecision.title,
+            )
+        } else {
+            MediaFormatLabels.audioFormatBadges(
+                codec = audioStream?.codec,
+                channels = audioStream?.channels,
+                title = audioStream?.title,
+            )
+        }
+        val canMark = canMarkUnwatched(userData) || _state.value.positionMs > 0L
+        _state.update {
+            it.copy(
+                videoBadges = videoBadges,
+                audioBadges = audioBadges,
+                canMarkUnwatched = canMark,
+            )
+        }
+    }
+
+    private fun canMarkUnwatched(data: UserData?): Boolean =
+        data?.watched == true || (data?.playbackPositionMs ?: 0L) > 0L
+
+    private fun applyUserData(data: UserData?, sources: List<MediaSource>) {
+        userData = data
+        mediaSource = sources.firstOrNull()
+        refreshFormatBadges()
+    }
+
+    fun markUnwatched() {
+        if (_state.value.markingUnwatched) return
+        viewModelScope.launch {
+            _state.update { it.copy(markingUnwatched = true) }
+            runCatching {
+                repository.putProgress(itemId, ProgressRequest(watched = false))
+            }.onSuccess {
+                userData = (userData ?: UserData()).copy(watched = false, playbackPositionMs = 0L)
+                _state.update {
+                    it.copy(
+                        markingUnwatched = false,
+                        canMarkUnwatched = canMarkUnwatched(userData) || it.positionMs > 0L,
+                    )
+                }
+            }.onFailure {
+                _state.update { it.copy(markingUnwatched = false) }
+            }
+        }
     }
 
     private fun loadMediaMeta() {
@@ -151,6 +246,7 @@ class PlayerViewModel @Inject constructor(
                     .onSuccess { episode ->
                         val seriesDetail = runCatching { repository.itemDetail(episode.seriesId) }.getOrNull()
                         val series = (seriesDetail as? ItemDetailResult.Series)?.value
+                        applyUserData(episode.userData, episode.mediaSources)
                         _state.update {
                             it.copy(
                                 mediaTitle = series?.title ?: episode.title,
@@ -167,14 +263,17 @@ class PlayerViewModel @Inject constructor(
             runCatching { repository.itemDetail(itemId) }
                 .onSuccess { detail ->
                     when (detail) {
-                        is ItemDetailResult.Movie -> _state.update {
-                            it.copy(
-                                mediaTitle = detail.value.title,
-                                mediaYear = detail.value.year,
-                                seasonNumber = null,
-                                episodeNumber = null,
-                                isEpisode = false,
-                            )
+                        is ItemDetailResult.Movie -> {
+                            applyUserData(detail.value.userData, detail.value.mediaSources)
+                            _state.update {
+                                it.copy(
+                                    mediaTitle = detail.value.title,
+                                    mediaYear = detail.value.year,
+                                    seasonNumber = null,
+                                    episodeNumber = null,
+                                    isEpisode = false,
+                                )
+                            }
                         }
                         is ItemDetailResult.Series -> _state.update {
                             it.copy(
@@ -247,6 +346,7 @@ class PlayerViewModel @Inject constructor(
                         offline = false,
                     )
                 }
+                refreshFormatBadges()
                 startProgressLoop()
                 startPingLoop()
             }.onFailure { err ->
@@ -527,6 +627,7 @@ class PlayerViewModel @Inject constructor(
         val position = absolutePosition()
         val previous = sessionId
         _state.update { it.copy(selectedAudioId = audioId, buffering = true) }
+        refreshFormatBadges()
         viewModelScope.launch {
             if (previous != null && previous != OFFLINE_SESSION_ID) {
                 repository.stopSession(previous)
@@ -678,6 +779,7 @@ class PlayerViewModel @Inject constructor(
                     val buffered = bufferedAbs.coerceAtMost(if (duration > 0) duration else bufferedAbs)
                     val playing = player.isPlaying
                     val buffering = player.playbackState == Player.STATE_BUFFERING
+                    val canMark = canMarkUnwatched(userData) || position > 0L
                     val current = _state.value
                     // Skip no-op emissions (e.g. while paused) so the screen
                     // does not recompose for identical state.
@@ -685,7 +787,8 @@ class PlayerViewModel @Inject constructor(
                         current.durationMs != duration ||
                         current.bufferedMs != buffered ||
                         current.playing != playing ||
-                        current.buffering != buffering
+                        current.buffering != buffering ||
+                        current.canMarkUnwatched != canMark
                     if (changed) {
                         _state.update {
                             it.copy(
@@ -694,6 +797,7 @@ class PlayerViewModel @Inject constructor(
                                 bufferedMs = buffered,
                                 playing = playing,
                                 buffering = buffering,
+                                canMarkUnwatched = canMark,
                             )
                         }
                     }
@@ -753,6 +857,7 @@ class PlayerViewModel @Inject constructor(
         progressJob?.cancel()
         pingJob?.cancel()
         tickerJob?.cancel()
+        bandwidthJob?.cancel()
         seekJob?.cancel()
         player.removeListener(playerListener)
         // Capture playback state before release: the player cannot be queried

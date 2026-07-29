@@ -140,6 +140,40 @@ class DetailsViewModelTest {
     }
 
     @Test
+    fun setMovieWatched_false_clears_in_progress_position() = runTest {
+        val movie = MovieDetail(
+            id = "m1",
+            kind = "Movie",
+            title = "Matrix",
+            userData = UserData(watched = false, playbackPositionMs = 1_000),
+        )
+        coEvery { repository.itemDetail("m1") } returns ItemDetailResult.Movie(movie)
+        coEvery { repository.putProgress(any(), any()) } returns ProgressResponse(
+            itemId = "m1",
+            watched = false,
+        )
+
+        val vm = createVm()
+        advanceUntilIdle()
+
+        vm.setMovieWatched(false)
+        advanceUntilIdle()
+
+        val body = slot<ProgressRequest>()
+        coVerify { repository.putProgress("m1", capture(body)) }
+        assertThat(body.captured.watched).isFalse()
+        assertThat(vm.state.value.movie?.userData?.watched).isFalse()
+        assertThat(vm.state.value.movie?.userData?.playbackPositionMs).isEqualTo(0L)
+    }
+
+    @Test
+    fun canMarkUnwatched_true_for_in_progress() {
+        assertThat(DetailsViewModel.canMarkUnwatched(false, 1_000)).isTrue()
+        assertThat(DetailsViewModel.canMarkUnwatched(true, 0)).isTrue()
+        assertThat(DetailsViewModel.canMarkUnwatched(false, 0)).isFalse()
+    }
+
+    @Test
     fun isSeriesWatched_requires_zero_unwatched() {
         val watched = SeriesDetail(
             id = "s1",

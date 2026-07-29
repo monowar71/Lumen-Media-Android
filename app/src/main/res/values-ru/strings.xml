@@ -151,6 +151,8 @@
     <string name="player_auto">Авто</string>
     <string name="player_now_playing">Сейчас играет</string>
     <string name="player_season_episode">S%1$dE%2$d</string>
+    <string name="player_mark_unwatched">Отметить как непросмотренное</string>
+    <string name="player_network_load">Сеть %1$s</string>
 
     <string name="settings_title">Настройки</string>
     <string name="settings_signed_in_as">Вы вошли как %1$s (%2$s)</string>

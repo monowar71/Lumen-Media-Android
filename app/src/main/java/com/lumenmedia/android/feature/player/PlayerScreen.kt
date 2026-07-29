@@ -484,6 +484,63 @@ fun PlayerScreen(
                                     overflow = TextOverflow.Ellipsis,
                                 )
                             }
+                            val hudChips = buildList {
+                                addAll(state.videoBadges)
+                                addAll(state.audioBadges)
+                                state.networkMbpsLabel?.let {
+                                    add(stringResource(R.string.player_network_load, it))
+                                }
+                            }
+                            if (hudChips.isNotEmpty()) {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                                    modifier = Modifier.padding(top = 4.dp),
+                                ) {
+                                    hudChips.forEach { chip ->
+                                        Text(
+                                            text = chip,
+                                            color = Color.White.copy(alpha = 0.9f),
+                                            style = MaterialTheme.typography.labelSmall,
+                                            modifier = Modifier
+                                                .clip(RoundedCornerShape(6.dp))
+                                                .background(Color.White.copy(alpha = 0.12f))
+                                                .border(
+                                                    width = 1.dp,
+                                                    color = Color.White.copy(alpha = 0.14f),
+                                                    shape = RoundedCornerShape(6.dp),
+                                                )
+                                                .padding(horizontal = 8.dp, vertical = 3.dp),
+                                            maxLines = 1,
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                        if (state.canMarkUnwatched) {
+                            Text(
+                                text = stringResource(R.string.player_mark_unwatched),
+                                color = Color.White.copy(alpha = if (state.markingUnwatched) 0.5f else 0.92f),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.Medium,
+                                modifier = Modifier
+                                    .padding(start = 8.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(Color.White.copy(alpha = 0.12f))
+                                    .border(
+                                        width = 1.dp,
+                                        color = Color.White.copy(alpha = 0.16f),
+                                        shape = RoundedCornerShape(8.dp),
+                                    )
+                                    .tvFocusable(
+                                        onClick = {
+                                            if (!state.markingUnwatched) viewModel.markUnwatched()
+                                        },
+                                        scaleFocused = 1.04f,
+                                        shape = RoundedCornerShape(8.dp),
+                                    )
+                                    .padding(horizontal = 10.dp, vertical = 8.dp),
+                                maxLines = 1,
+                            )
                         }
                     }
                 }

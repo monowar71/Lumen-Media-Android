@@ -182,14 +182,18 @@ class DetailsViewModel @Inject constructor(
 
     fun toggleMovieWatched() {
         val movie = _state.value.movie ?: return
-        val next = movie.userData.watched != true
-        setWatched(movie.id, next) {
+        setMovieWatched(watched = movie.userData.watched != true)
+    }
+
+    fun setMovieWatched(watched: Boolean) {
+        val movie = _state.value.movie ?: return
+        setWatched(movie.id, watched) {
             _state.update {
                 it.copy(
                     movie = movie.copy(
                         userData = movie.userData.copy(
-                            watched = next,
-                            playbackPositionMs = if (next) 0L else movie.userData.playbackPositionMs,
+                            watched = watched,
+                            playbackPositionMs = 0L,
                         ),
                     ),
                 )
@@ -199,11 +203,15 @@ class DetailsViewModel @Inject constructor(
 
     fun toggleSeriesWatched() {
         val series = _state.value.series ?: return
-        val next = !isSeriesWatched(series)
-        setWatched(series.id, next) {
-            applyEpisodeWatched(watched = next)
+        setSeriesWatched(watched = !isSeriesWatched(series))
+    }
+
+    fun setSeriesWatched(watched: Boolean) {
+        val series = _state.value.series ?: return
+        setWatched(series.id, watched) {
+            applyEpisodeWatched(watched = watched)
             _state.update {
-                val unwatched = if (next) 0 else (series.episodeCount)
+                val unwatched = if (watched) 0 else (series.episodeCount)
                 it.copy(
                     series = series.copy(
                         userData = series.userData.copy(unwatchedEpisodeCount = unwatched),
@@ -214,28 +222,37 @@ class DetailsViewModel @Inject constructor(
     }
 
     fun toggleSeasonWatched() {
+        val episodes = _state.value.episodes
+        if (episodes.isEmpty()) return
+        setSeasonWatched(watched = !episodes.all { it.userData.watched == true })
+    }
+
+    fun setSeasonWatched(watched: Boolean) {
         val seasonId = _state.value.selectedSeasonId ?: return
         val episodes = _state.value.episodes
         if (episodes.isEmpty()) return
-        val next = !episodes.all { it.userData.watched == true }
-        setWatched(seasonId, next) {
-            applyEpisodeWatched(watched = next)
+        setWatched(seasonId, watched) {
+            applyEpisodeWatched(watched = watched)
             refreshSeriesUnwatchedCount()
         }
     }
 
     fun toggleEpisodeWatched(episodeId: String) {
         val episode = _state.value.episodes.firstOrNull { it.id == episodeId } ?: return
-        val next = episode.userData.watched != true
-        setWatched(episodeId, next) {
+        setEpisodeWatched(episodeId, watched = episode.userData.watched != true)
+    }
+
+    fun setEpisodeWatched(episodeId: String, watched: Boolean) {
+        if (_state.value.episodes.none { it.id == episodeId }) return
+        setWatched(episodeId, watched) {
             _state.update { state ->
                 state.copy(
                     episodes = state.episodes.map { ep ->
                         if (ep.id != episodeId) ep
                         else ep.copy(
                             userData = ep.userData.copy(
-                                watched = next,
-                                playbackPositionMs = if (next) 0L else ep.userData.playbackPositionMs,
+                                watched = watched,
+                                playbackPositionMs = 0L,
                             ),
                         )
                     },
@@ -319,7 +336,7 @@ class DetailsViewModel @Inject constructor(
                     ep.copy(
                         userData = ep.userData.copy(
                             watched = watched,
-                            playbackPositionMs = if (watched) 0L else ep.userData.playbackPositionMs,
+                            playbackPositionMs = 0L,
                         ),
                     )
                 },
@@ -345,10 +362,27 @@ class DetailsViewModel @Inject constructor(
     }
 
     companion object {
+        fun canMarkUnwatched(watched: Boolean?, playbackPositionMs: Long?): Boolean =
+            watched == true || (playbackPositionMs ?: 0L) > 0L
+
         fun isSeriesWatched(series: SeriesDetail): Boolean =
             series.episodeCount > 0 && (series.userData.unwatchedEpisodeCount ?: series.episodeCount) == 0
 
         fun isSeasonWatched(episodes: List<EpisodeSummary>): Boolean =
             episodes.isNotEmpty() && episodes.all { it.userData.watched == true }
+
+        fun seasonCanMarkUnwatched(episodes: List<EpisodeSummary>): Boolean =
+            episodes.any {
+                it.userData.watched == true || (it.userData.playbackPositionMs ?: 0L) > 0L
+            }
+
+        fun seriesCanMarkUnwatched(series: SeriesDetail): Boolean {
+            if (isSeriesWatched(series)) return true
+            val unwatched = series.userData.unwatchedEpisodeCount ?: series.episodeCount
+            if (series.episodeCount > 0 && unwatched < series.episodeCount) return true
+            val nextUp = series.userData.nextUp
+            return nextUp != null &&
+                canMarkUnwatched(nextUp.userData.watched, nextUp.userData.playbackPositionMs)
+        }
     }
 }
