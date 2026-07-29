@@ -62,6 +62,7 @@ class DetailsViewModelTest {
             username = "admin",
             role = "Admin",
         )
+        every { accessToken } returns "a"
     }
     private val offlineDownloadManager = mockk<com.lumenmedia.android.core.offline.OfflineDownloadManager>(relaxed = true) {
         every { entries } returns kotlinx.coroutines.flow.MutableStateFlow(emptyList())
