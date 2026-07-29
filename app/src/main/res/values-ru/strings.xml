@@ -128,6 +128,11 @@
     <string name="details_deleting_file">Удаление…</string>
     <string name="details_delete_file_title">Удалить файл?</string>
     <string name="details_delete_file_confirm">Удалить видеофайл с сервера? Это действие нельзя отменить.</string>
+    <string name="details_media_files">Медиафайлы</string>
+    <string name="details_source_version">Версия %1$d</string>
+    <string name="details_media_video">Видео: %1$s</string>
+    <string name="details_media_audio">Аудио: %1$s</string>
+    <string name="details_media_audio_extra">Аудио: %1$s (ещё %2$d)</string>
 
     <string name="player_back">Назад</string>
     <string name="player_retry">Повторить</string>
@@ -136,6 +141,12 @@
     <string name="player_audio">Аудио</string>
     <string name="player_subtitles">Субтитры</string>
     <string name="player_quality">Качество</string>
+    <string name="player_audio_layout">Каналы</string>
+    <string name="player_hdr_to_sdr">HDR→SDR</string>
+    <string name="player_hdr_to_sdr_on">Конвертировать в SDR</string>
+    <string name="player_hdr_to_sdr_on_hint">Тон-маппинг на сервере</string>
+    <string name="player_hdr_to_sdr_off">Оставить HDR</string>
+    <string name="player_hdr_to_sdr_off_hint">Если дисплей поддерживает</string>
     <string name="player_off">Выкл.</string>
     <string name="player_audio_fallback">Аудио</string>
     <string name="player_subtitle_fallback">Субтитры</string>

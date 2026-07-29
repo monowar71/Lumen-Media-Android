@@ -94,7 +94,7 @@ import com.lumenmedia.android.core.util.formatTrackLanguage
 import kotlinx.coroutines.delay
 import kotlin.math.max
 
-private enum class OpenTrackMenu { Quality, Audio, Subtitles }
+private enum class OpenTrackMenu { Quality, Audio, Subtitles, AudioLayout, HdrToSdr }
 
 private data class TrackMenuItem(
     val id: String?,
@@ -124,6 +124,8 @@ fun PlayerScreen(
     val qualityButtonFocus = remember { FocusRequester() }
     val audioButtonFocus = remember { FocusRequester() }
     val subtitleButtonFocus = remember { FocusRequester() }
+    val audioLayoutButtonFocus = remember { FocusRequester() }
+    val hdrButtonFocus = remember { FocusRequester() }
     val menuSelectedFocus = remember { FocusRequester() }
 
     val displayMs = if (scrubbing) scrubMs.toLong() else state.positionMs
@@ -137,6 +139,8 @@ fun PlayerScreen(
     val qualityTitle = stringResource(R.string.player_quality)
     val audioTitle = stringResource(R.string.player_audio)
     val subtitlesTitle = stringResource(R.string.player_subtitles)
+    val audioLayoutTitle = stringResource(R.string.player_audio_layout)
+    val hdrTitle = stringResource(R.string.player_hdr_to_sdr)
     val offLabel = stringResource(R.string.player_off)
     val audioFallback = stringResource(R.string.player_audio_fallback)
     val subtitleFallback = stringResource(R.string.player_subtitle_fallback)
@@ -151,6 +155,29 @@ fun PlayerScreen(
                 subtitle = q.bitrateKbps?.let { kbps ->
                     if (kbps >= 1000) "%.1f Mbps".format(kbps / 1000.0) else "$kbps kbps"
                 },
+            )
+        }
+    }
+    val audioLayoutItems = remember(state.decision?.availableAudioLayouts) {
+        state.decision?.availableAudioLayouts.orEmpty().map { layout ->
+            TrackMenuItem(id = layout.id, label = layout.label)
+        }
+    }
+    val hdrItems = remember(state.decision?.sourceHdr) {
+        if (state.decision?.sourceHdr.isNullOrBlank()) {
+            emptyList()
+        } else {
+            listOf(
+                TrackMenuItem(
+                    id = "on",
+                    label = context.getString(R.string.player_hdr_to_sdr_on),
+                    subtitle = context.getString(R.string.player_hdr_to_sdr_on_hint),
+                ),
+                TrackMenuItem(
+                    id = "off",
+                    label = context.getString(R.string.player_hdr_to_sdr_off),
+                    subtitle = context.getString(R.string.player_hdr_to_sdr_off_hint),
+                ),
             )
         }
     }
@@ -270,6 +297,8 @@ fun PlayerScreen(
                     OpenTrackMenu.Quality -> qualityButtonFocus.requestFocus()
                     OpenTrackMenu.Audio -> audioButtonFocus.requestFocus()
                     OpenTrackMenu.Subtitles -> subtitleButtonFocus.requestFocus()
+                    OpenTrackMenu.AudioLayout -> audioLayoutButtonFocus.requestFocus()
+                    OpenTrackMenu.HdrToSdr -> hdrButtonFocus.requestFocus()
                     null -> Unit
                 }
             }
@@ -601,6 +630,34 @@ fun PlayerScreen(
                                 .align(Alignment.End)
                                 .padding(bottom = 10.dp),
                         )
+                        OpenTrackMenu.AudioLayout -> TrackDropdown(
+                            title = audioLayoutTitle,
+                            items = audioLayoutItems,
+                            selectedId = state.selectedAudioLayout,
+                            selectedFocus = menuSelectedFocus,
+                            onSelect = { id ->
+                                if (id != null) viewModel.changeAudioLayout(id)
+                                openMenu = null
+                                revealControls()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(bottom = 10.dp),
+                        )
+                        OpenTrackMenu.HdrToSdr -> TrackDropdown(
+                            title = hdrTitle,
+                            items = hdrItems,
+                            selectedId = if (state.forceHdrToSdr) "on" else "off",
+                            selectedFocus = menuSelectedFocus,
+                            onSelect = { id ->
+                                viewModel.changeForceHdrToSdr(id == "on")
+                                openMenu = null
+                                revealControls()
+                            },
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(bottom = 10.dp),
+                        )
                         null -> Unit
                     }
 
@@ -669,16 +726,44 @@ fun PlayerScreen(
                                 contentDescription = qualityTitle,
                                 focusRequester = qualityButtonFocus,
                                 upFocus = seekFocus,
-                                rightFocus = audioButtonFocus,
+                                rightFocus = if (hdrItems.isNotEmpty()) hdrButtonFocus else if (audioLayoutItems.size > 1) audioLayoutButtonFocus else audioButtonFocus,
                                 onClick = { toggleMenu(OpenTrackMenu.Quality) },
                             )
+                            if (hdrItems.isNotEmpty()) {
+                                TrackMenuButton(
+                                    label = hdrTitle,
+                                    icon = Icons.Default.Tune,
+                                    contentDescription = hdrTitle,
+                                    focusRequester = hdrButtonFocus,
+                                    upFocus = seekFocus,
+                                    leftFocus = qualityButtonFocus,
+                                    rightFocus = if (audioLayoutItems.size > 1) audioLayoutButtonFocus else audioButtonFocus,
+                                    onClick = { toggleMenu(OpenTrackMenu.HdrToSdr) },
+                                )
+                            }
+                            if (audioLayoutItems.size > 1) {
+                                TrackMenuButton(
+                                    label = audioLayoutTitle,
+                                    icon = Icons.Default.Audiotrack,
+                                    contentDescription = audioLayoutTitle,
+                                    focusRequester = audioLayoutButtonFocus,
+                                    upFocus = seekFocus,
+                                    leftFocus = if (hdrItems.isNotEmpty()) hdrButtonFocus else qualityButtonFocus,
+                                    rightFocus = audioButtonFocus,
+                                    onClick = { toggleMenu(OpenTrackMenu.AudioLayout) },
+                                )
+                            }
                             TrackMenuButton(
                                 label = audioTitle,
                                 icon = Icons.Default.Audiotrack,
                                 contentDescription = audioTitle,
                                 focusRequester = audioButtonFocus,
                                 upFocus = seekFocus,
-                                leftFocus = qualityButtonFocus,
+                                leftFocus = when {
+                                    audioLayoutItems.size > 1 -> audioLayoutButtonFocus
+                                    hdrItems.isNotEmpty() -> hdrButtonFocus
+                                    else -> qualityButtonFocus
+                                },
                                 rightFocus = subtitleButtonFocus,
                                 onClick = { toggleMenu(OpenTrackMenu.Audio) },
                             )

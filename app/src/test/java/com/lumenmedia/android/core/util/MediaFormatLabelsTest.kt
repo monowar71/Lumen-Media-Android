@@ -33,4 +33,33 @@ class MediaFormatLabelsTest {
         assertThat(MediaFormatLabels.formatNetworkMbps(12_400_000)).isEqualTo("12.4 Mbps")
         assertThat(MediaFormatLabels.formatNetworkMbps(0)).isNull()
     }
+
+    @Test
+    fun playbackFormatPaths_shows_transcode_conversion() {
+        val paths = MediaFormatLabels.playbackFormatPaths(
+            method = "Transcode",
+            sourceCodec = "hevc",
+            sourceHdr = "DolbyVision",
+            sourceWidth = 3840,
+            sourceHeight = 2160,
+            sourceAudioCodec = "eac3",
+            sourceAudioChannels = 6,
+            sourceAudioTitle = null,
+            selectedQualityId = "1080",
+            availableQualities = listOf(
+                com.lumenmedia.android.core.model.QualityOption(
+                    id = "1080",
+                    label = "1080p",
+                    width = 1920,
+                    height = 1080,
+                ),
+            ),
+            toneMapActive = true,
+            selectedAudioLayout = "stereo",
+        )
+        assertThat(paths.videoLabel)
+            .isEqualTo("2160p · Dolby Vision · HEVC → 1080p · SDR · H.264")
+        assertThat(paths.audioLabel)
+            .isEqualTo("Dolby Digital+ · 5.1 → AAC · Stereo")
+    }
 }

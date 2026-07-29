@@ -59,6 +59,8 @@ data class PlayerUiState(
     val selectedQualityId: String = "auto",
     val selectedAudioId: String? = null,
     val selectedSubtitleId: String? = null,
+    val forceHdrToSdr: Boolean = false,
+    val selectedAudioLayout: String? = null,
     val baseUrl: String = "",
     val positionMs: Long = 0L,
     val durationMs: Long = 0L,
@@ -74,6 +76,10 @@ data class PlayerUiState(
     val isEpisode: Boolean = false,
     val videoBadges: List<String> = emptyList(),
     val audioBadges: List<String> = emptyList(),
+    /** Source or source→output video summary for the HUD. */
+    val videoFormatLabel: String? = null,
+    /** Source or source→output audio summary for the HUD. */
+    val audioFormatLabel: String? = null,
     val networkMbpsLabel: String? = null,
     val canMarkUnwatched: Boolean = false,
     val markingUnwatched: Boolean = false,
@@ -162,36 +168,39 @@ class PlayerViewModel @Inject constructor(
     }
 
     private fun refreshFormatBadges() {
+        val decision = _state.value.decision
         val video = mediaSource?.streams?.firstOrNull { it.kind.equals("Video", ignoreCase = true) }
-        val audioFromDecision = _state.value.decision?.audioStreams
+        val audioFromDecision = decision?.audioStreams
             ?.firstOrNull { it.id == _state.value.selectedAudioId }
         val audioStream = mediaSource?.streams
             ?.firstOrNull { it.kind.equals("Audio", ignoreCase = true) && it.isDefault == true }
             ?: mediaSource?.streams?.firstOrNull { it.kind.equals("Audio", ignoreCase = true) }
-        val videoBadges = MediaFormatLabels.videoFormatBadges(
-            codec = video?.codec,
-            hdr = video?.hdr,
-            width = video?.width,
-            height = video?.height,
+        val sourceAudioCodec = audioFromDecision?.codec ?: audioStream?.codec
+        val sourceAudioChannels = audioFromDecision?.channels ?: audioStream?.channels
+        val sourceAudioTitle = audioFromDecision?.title ?: audioStream?.title
+        val sourceHdr = video?.hdr ?: decision?.sourceHdr
+        val paths = MediaFormatLabels.playbackFormatPaths(
+            method = decision?.method,
+            sourceCodec = video?.codec,
+            sourceHdr = sourceHdr,
+            sourceWidth = video?.width,
+            sourceHeight = video?.height,
+            sourceAudioCodec = sourceAudioCodec,
+            sourceAudioChannels = sourceAudioChannels,
+            sourceAudioTitle = sourceAudioTitle,
+            selectedQualityId = _state.value.selectedQualityId.ifBlank { decision?.selectedQualityId },
+            availableQualities = decision?.availableQualities.orEmpty(),
+            toneMapActive = decision?.toneMapActive == true,
+            selectedAudioLayout = _state.value.selectedAudioLayout
+                ?: decision?.selectedAudioLayout,
         )
-        val audioBadges = if (audioFromDecision != null) {
-            MediaFormatLabels.audioFormatBadges(
-                codec = audioFromDecision.codec,
-                channels = audioFromDecision.channels,
-                title = audioFromDecision.title,
-            )
-        } else {
-            MediaFormatLabels.audioFormatBadges(
-                codec = audioStream?.codec,
-                channels = audioStream?.channels,
-                title = audioStream?.title,
-            )
-        }
         val canMark = canMarkUnwatched(userData) || _state.value.positionMs > 0L
         _state.update {
             it.copy(
-                videoBadges = videoBadges,
-                audioBadges = audioBadges,
+                videoBadges = listOfNotNull(paths.videoLabel),
+                audioBadges = listOfNotNull(paths.audioLabel),
+                videoFormatLabel = paths.videoLabel,
+                audioFormatLabel = paths.audioLabel,
                 canMarkUnwatched = canMark,
             )
         }
@@ -308,7 +317,9 @@ class PlayerViewModel @Inject constructor(
                 val kind = NetworkKindDetector.detect(context)
                 val cap = settingsRepository.capFor(settings, kind)
                 val preferredMode = mode ?: settings.preferredMode
-                val profile = DeviceProfileFactory.build(cap)
+                val profile = DeviceProfileFactory.build(context, cap)
+                val forceHdr = _state.value.forceHdrToSdr
+                val audioLayout = _state.value.selectedAudioLayout
                 val decision = repository.playbackDecision(
                     PlaybackDecisionRequest(
                         mediaId = itemId,
@@ -318,6 +329,8 @@ class PlayerViewModel @Inject constructor(
                         subtitleStreamId = _state.value.selectedSubtitleId,
                         resumePositionMs = resumeMs,
                         profile = profile,
+                        forceHdrToSdr = forceHdr,
+                        audioLayout = audioLayout,
                     ),
                 )
                 sessionId = decision.sessionId
@@ -334,12 +347,15 @@ class PlayerViewModel @Inject constructor(
                 )
                 Triple(decision, settings.baseUrl, audioId)
             }.onSuccess { (decision, baseUrl, audioId) ->
+                val autoForce = !decision.sourceHdr.isNullOrBlank() && !DeviceProfileFactory.supportsHdr(context)
                 _state.update {
                     it.copy(
                         loading = false,
                         decision = decision,
                         selectedQualityId = decision.selectedQualityId,
                         selectedAudioId = audioId,
+                        forceHdrToSdr = it.forceHdrToSdr || autoForce || decision.toneMapActive,
+                        selectedAudioLayout = decision.selectedAudioLayout,
                         baseUrl = baseUrl,
                         durationMs = decision.durationMs ?: it.durationMs,
                         positionMs = decision.startPositionMs ?: resumeMs,
@@ -480,6 +496,7 @@ class PlayerViewModel @Inject constructor(
                 offline = false,
             )
         }
+        refreshFormatBadges()
     }
 
     private fun applyTextTrackSelection(subtitleId: String?) {
@@ -590,6 +607,95 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
+    fun changeForceHdrToSdr(force: Boolean) {
+        if (offlinePlayback) return
+        val decision = _state.value.decision ?: return
+        if (decision.sourceHdr.isNullOrBlank()) return
+        if (!DeviceProfileFactory.supportsHdr(context) && !force) return
+        if (force == _state.value.forceHdrToSdr) return
+        val position = absolutePosition()
+        _state.update { it.copy(forceHdrToSdr = force, buffering = true) }
+        viewModelScope.launch {
+            runCatching {
+                repository.setQuality(
+                    decision.sessionId,
+                    SetQualityRequest(
+                        qualityId = _state.value.selectedQualityId,
+                        mode = decision.mode,
+                        resumePositionMs = position,
+                        forceHdrToSdr = force,
+                        audioLayout = _state.value.selectedAudioLayout,
+                    ),
+                )
+            }.onSuccess { next ->
+                sessionId = next.sessionId
+                cacheToken += 1
+                val settings = settingsRepository.settings.first()
+                val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
+                attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, _state.value.selectedSubtitleId)
+                _state.update {
+                    it.copy(
+                        decision = next,
+                        selectedQualityId = next.selectedQualityId,
+                        forceHdrToSdr = force || next.toneMapActive,
+                        selectedAudioLayout = next.selectedAudioLayout,
+                        buffering = false,
+                    )
+                }
+            }.onFailure { err ->
+                _state.update {
+                    it.copy(
+                        buffering = false,
+                        error = err.toUserMessage("Could not change HDR→SDR"),
+                    )
+                }
+            }
+        }
+    }
+
+    fun changeAudioLayout(layoutId: String) {
+        if (offlinePlayback) return
+        val decision = _state.value.decision ?: return
+        if (layoutId == _state.value.selectedAudioLayout) return
+        val position = absolutePosition()
+        _state.update { it.copy(selectedAudioLayout = layoutId, buffering = true) }
+        viewModelScope.launch {
+            runCatching {
+                repository.setQuality(
+                    decision.sessionId,
+                    SetQualityRequest(
+                        qualityId = _state.value.selectedQualityId,
+                        mode = decision.mode,
+                        resumePositionMs = position,
+                        forceHdrToSdr = _state.value.forceHdrToSdr,
+                        audioLayout = layoutId,
+                    ),
+                )
+            }.onSuccess { next ->
+                sessionId = next.sessionId
+                cacheToken += 1
+                val settings = settingsRepository.settings.first()
+                val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
+                attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, _state.value.selectedSubtitleId)
+                _state.update {
+                    it.copy(
+                        decision = next,
+                        selectedQualityId = next.selectedQualityId,
+                        selectedAudioLayout = next.selectedAudioLayout,
+                        buffering = false,
+                    )
+                }
+            }.onFailure { err ->
+                _state.update {
+                    it.copy(
+                        buffering = false,
+                        error = err.toUserMessage("Could not change audio layout"),
+                    )
+                }
+            }
+        }
+    }
+
     fun changeQuality(qualityId: String) {
         if (offlinePlayback) return
         val decision = _state.value.decision ?: return
@@ -603,7 +709,13 @@ class PlayerViewModel @Inject constructor(
             runCatching {
                 repository.setQuality(
                     decision.sessionId,
-                    SetQualityRequest(qualityId = qualityId, mode = mode, resumePositionMs = position),
+                    SetQualityRequest(
+                        qualityId = qualityId,
+                        mode = mode,
+                        resumePositionMs = position,
+                        forceHdrToSdr = _state.value.forceHdrToSdr,
+                        audioLayout = _state.value.selectedAudioLayout,
+                    ),
                 )
             }.onSuccess { next ->
                 sessionId = next.sessionId
@@ -612,7 +724,12 @@ class PlayerViewModel @Inject constructor(
                 val source = resolvePlaybackSource(next, settings.baseUrl, cacheToken.toString())
                 attachSource(source, next.startPositionMs ?: position, next, settings.baseUrl, _state.value.selectedSubtitleId)
                 _state.update {
-                    it.copy(decision = next, selectedQualityId = next.selectedQualityId)
+                    it.copy(
+                        decision = next,
+                        selectedQualityId = next.selectedQualityId,
+                        selectedAudioLayout = next.selectedAudioLayout,
+                        forceHdrToSdr = it.forceHdrToSdr || next.toneMapActive,
+                    )
                 }
             }.onFailure {
                 startPlayback(position, qualityId, mode)
@@ -637,7 +754,7 @@ class PlayerViewModel @Inject constructor(
                 val settings = settingsRepository.settings.first()
                 val kind = NetworkKindDetector.detect(context)
                 val cap = settingsRepository.capFor(settings, kind)
-                val profile = DeviceProfileFactory.build(cap)
+                val profile = DeviceProfileFactory.build(context, cap)
                 val next = repository.playbackDecision(
                     PlaybackDecisionRequest(
                         mediaId = itemId,
@@ -647,6 +764,8 @@ class PlayerViewModel @Inject constructor(
                         subtitleStreamId = _state.value.selectedSubtitleId,
                         resumePositionMs = position,
                         profile = profile,
+                        forceHdrToSdr = _state.value.forceHdrToSdr,
+                        audioLayout = _state.value.selectedAudioLayout,
                     ),
                 )
                 sessionId = next.sessionId
@@ -711,7 +830,7 @@ class PlayerViewModel @Inject constructor(
                 val settings = settingsRepository.settings.first()
                 val kind = NetworkKindDetector.detect(context)
                 val cap = settingsRepository.capFor(settings, kind)
-                val profile = DeviceProfileFactory.build(cap)
+                val profile = DeviceProfileFactory.build(context, cap)
                 val next = repository.playbackDecision(
                     PlaybackDecisionRequest(
                         mediaId = itemId,
@@ -721,6 +840,8 @@ class PlayerViewModel @Inject constructor(
                         subtitleStreamId = subtitleId,
                         resumePositionMs = position,
                         profile = profile,
+                        forceHdrToSdr = _state.value.forceHdrToSdr,
+                        audioLayout = _state.value.selectedAudioLayout,
                     ),
                 )
                 sessionId = next.sessionId

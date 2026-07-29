@@ -294,6 +294,8 @@ data class PlaybackDecisionRequest(
     val subtitleStreamId: String? = null,
     val resumePositionMs: Long = 0,
     val profile: DeviceProfile,
+    val forceHdrToSdr: Boolean = false,
+    val audioLayout: String? = null,
 )
 
 @Serializable
@@ -304,6 +306,13 @@ data class QualityOption(
     val width: Int? = null,
     val height: Int? = null,
     val bitrateKbps: Int? = null,
+)
+
+@Serializable
+data class AudioLayoutOption(
+    val id: String,
+    val label: String,
+    val channels: Int? = null,
 )
 
 @Serializable
@@ -344,6 +353,10 @@ data class PlaybackDecisionResponse(
     val subtitleStreams: List<SubtitleStreamOption> = emptyList(),
     val expiresAt: String? = null,
     val reason: String? = null,
+    val sourceHdr: String? = null,
+    val toneMapActive: Boolean = false,
+    val availableAudioLayouts: List<AudioLayoutOption> = emptyList(),
+    val selectedAudioLayout: String = "stereo",
 )
 
 @Serializable
@@ -351,6 +364,10 @@ data class SetQualityRequest(
     val qualityId: String,
     val mode: String,
     val resumePositionMs: Long,
+    val audioStreamId: String? = null,
+    val subtitleStreamId: String? = null,
+    val forceHdrToSdr: Boolean? = null,
+    val audioLayout: String? = null,
 )
 
 @Serializable

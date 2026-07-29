@@ -136,6 +136,11 @@
     <string name="details_deleting_file">Deleting…</string>
     <string name="details_delete_file_title">Delete file?</string>
     <string name="details_delete_file_confirm">Delete this video file from the server? This cannot be undone.</string>
+    <string name="details_media_files">Media files</string>
+    <string name="details_source_version">Version %1$d</string>
+    <string name="details_media_video">Video: %1$s</string>
+    <string name="details_media_audio">Audio: %1$s</string>
+    <string name="details_media_audio_extra">Audio: %1$s (+%2$d more)</string>
 
     <!-- player -->
     <string name="player_back">Back</string>
@@ -145,6 +150,12 @@
     <string name="player_audio">Audio</string>
     <string name="player_subtitles">Subtitles</string>
     <string name="player_quality">Quality</string>
+    <string name="player_audio_layout">Channels</string>
+    <string name="player_hdr_to_sdr">HDR→SDR</string>
+    <string name="player_hdr_to_sdr_on">Convert to SDR</string>
+    <string name="player_hdr_to_sdr_on_hint">Server tone-mapping</string>
+    <string name="player_hdr_to_sdr_off">Keep HDR</string>
+    <string name="player_hdr_to_sdr_off_hint">When the display supports it</string>
     <string name="player_off">Off</string>
     <string name="player_audio_fallback">Audio</string>
     <string name="player_subtitle_fallback">Subtitle</string>

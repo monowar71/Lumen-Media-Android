@@ -6,6 +6,18 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.4] - 2026-07-29
+
+### Added
+
+- Player menus for HDR→SDR (when source is HDR) and audio channel layout (stereo / 2.1 / 5.1 / mono).
+- Player HUD shows source→output format when transcoding (e.g. HEVC HDR → H.264 SDR).
+- Movie details show source video/audio format per media file.
+
+### Fixed
+
+- `supportsHdr` in the device profile now uses display HDR capabilities instead of treating HEVC as HDR.
+
 ## [0.1.3] - 2026-07-29
 
 ### Added
@@ -44,7 +56,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
 
-[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.3...HEAD
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.4...HEAD
+[0.1.4]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.4
 [0.1.3]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.3
 [0.1.2]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.2
 [0.1.1]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.1

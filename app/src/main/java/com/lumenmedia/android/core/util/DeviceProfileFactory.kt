@@ -1,12 +1,20 @@
 package com.lumenmedia.android.core.util
 
+import android.content.Context
+import android.hardware.display.DisplayManager
 import android.media.MediaCodecList
+import android.os.Build
+import android.view.Display
 import com.lumenmedia.android.core.model.DeviceProfile
 
 object DeviceProfileFactory {
-    fun build(maxBitrateKbps: Int, maxResolution: String = "2160p"): DeviceProfile {
+    fun build(
+        context: Context,
+        maxBitrateKbps: Int,
+        maxResolution: String = "2160p",
+    ): DeviceProfile {
         val hevc = supportsCodec("video/hevc")
-        val hdr = supportsHdr()
+        val hdr = supportsHdr(context)
         val video = mutableListOf("h264")
         if (hevc) video += "hevc"
         if (supportsCodec("video/av01")) video += "av1"
@@ -37,5 +45,21 @@ object DeviceProfileFactory {
         }
     }
 
-    private fun supportsHdr(): Boolean = supportsCodec("video/hevc")
+    /** True when at least one connected display reports an HDR type. */
+    fun supportsHdr(context: Context): Boolean {
+        return try {
+            val dm = context.getSystemService(Context.DISPLAY_SERVICE) as? DisplayManager
+                ?: return false
+            dm.displays.any { display -> displaySupportsHdr(display) }
+        } catch (_: Throwable) {
+            false
+        }
+    }
+
+    private fun displaySupportsHdr(display: Display): Boolean {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N) return false
+        val caps = display.hdrCapabilities ?: return false
+        val types = caps.supportedHdrTypes
+        return types.isNotEmpty()
+    }
 }

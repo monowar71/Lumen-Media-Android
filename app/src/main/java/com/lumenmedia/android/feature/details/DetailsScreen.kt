@@ -67,9 +67,11 @@ import com.lumenmedia.android.core.designsystem.fpContentPadding
 import com.lumenmedia.android.core.designsystem.isTvDevice
 import com.lumenmedia.android.core.designsystem.tvFocusable
 import com.lumenmedia.android.core.model.EpisodeSummary
+import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.Person
 import com.lumenmedia.android.core.offline.CachedEpisodeStatus
 import com.lumenmedia.android.core.offline.OfflineEpisodeState
+import com.lumenmedia.android.core.util.MediaFormatLabels
 import com.lumenmedia.android.core.util.absoluteUrl
 import com.lumenmedia.android.core.util.artworkUrl
 import com.lumenmedia.android.feature.library.LibraryGenre
@@ -175,6 +177,11 @@ fun DetailsScreen(
                     mediaActions = movieActions,
                     tv = tv,
                 )
+            }
+            if (movie.mediaSources.isNotEmpty()) {
+                item(key = "media-files") {
+                    MediaSourcesSection(sources = movie.mediaSources, tv = tv)
+                }
             }
             if (cast.isNotEmpty()) {
                 item(key = "cast") {
@@ -874,6 +881,90 @@ private fun GenreBadgeRow(
 private fun genreDisplayLabel(apiValue: String): String {
     val known = LibraryGenre.entries.find { it.apiValue.equals(apiValue, ignoreCase = true) }
     return known?.let { stringResource(it.labelRes) } ?: apiValue
+}
+
+@Composable
+private fun MediaSourcesSection(
+    sources: List<MediaSource>,
+    tv: Boolean,
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(
+                horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone,
+                vertical = FpDimens.space12,
+            ),
+        verticalArrangement = Arrangement.spacedBy(FpDimens.space8),
+    ) {
+        FpSectionTitle(stringResource(R.string.details_media_files))
+        sources.forEachIndexed { index, source ->
+            val video = source.streams.firstOrNull { it.kind.equals("Video", ignoreCase = true) }
+            val audio = source.streams.firstOrNull { it.kind.equals("Audio", ignoreCase = true) && it.isDefault == true }
+                ?: source.streams.firstOrNull { it.kind.equals("Audio", ignoreCase = true) }
+            val videoLine = MediaFormatLabels.videoFormatSummary(
+                codec = video?.codec,
+                hdr = video?.hdr,
+                width = video?.width,
+                height = video?.height,
+            )
+            val audioLine = MediaFormatLabels.audioFormatSummary(
+                codec = audio?.codec,
+                channels = audio?.channels,
+                title = audio?.title,
+            )
+            val extraAudio = (source.streams.count { it.kind.equals("Audio", ignoreCase = true) } - 1)
+                .coerceAtLeast(0)
+            val meta = MediaFormatLabels.containerBitrateLine(
+                container = source.container,
+                sizeBytes = source.sizeBytes,
+                overallBitrateKbps = source.overallBitrateKbps,
+            )
+            val title = stringResource(R.string.details_source_version, index + 1)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clip(RoundedCornerShape(FpDimens.radiusMd))
+                    .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f))
+                    .padding(FpDimens.space12),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
+            ) {
+                Text(
+                    text = title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                )
+                if (videoLine != null) {
+                    Text(
+                        text = stringResource(R.string.details_media_video, videoLine),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (audioLine != null) {
+                    val audioText = if (extraAudio > 0) {
+                        stringResource(R.string.details_media_audio_extra, audioLine, extraAudio)
+                    } else {
+                        stringResource(R.string.details_media_audio, audioLine)
+                    }
+                    Text(
+                        text = audioText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                if (meta != null) {
+                    Text(
+                        text = meta,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.85f),
+                    )
+                }
+            }
+        }
+    }
 }
 
 @Composable
