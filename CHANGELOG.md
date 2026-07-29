@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.3] - 2026-07-29
+
+### Added
+
+- Mark as unwatched is available for in-progress media (not only fully watched) on details and in the player chrome.
+- Player HUD shows estimated network throughput and video/audio format badges (resolution, HDR / Dolby Vision, Atmos / DD+, channel layout).
+- `MediaStream` model now deserializes `hdr` and related probe fields from the API.
+
 ## [0.1.2] - 2026-07-29
 
 ### Fixed
@@ -36,7 +44,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
 
-[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.2...HEAD
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.3...HEAD
+[0.1.3]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.3
 [0.1.2]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.2
 [0.1.1]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.1
 [0.1.0]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.0
