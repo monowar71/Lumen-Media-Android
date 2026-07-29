@@ -22,6 +22,7 @@ We aim to acknowledge reports within **72 hours**.
 
 ## Client-specific notes
 
-- Never commit API tokens, keystores, or `local.properties` / `.env` files.
+- Never commit API tokens, **release/upload** keystores, or `local.properties` / `.env` files.
+- The shared **debug** keystore at `app/signing/lumenmedia-debug.keystore` is committed on purpose so CI and local debug APKs share one signature for `adb install -r` (sideload only — not for Play Store).
 - Store refresh/access tokens only in platform-secure storage (Keychain / EncryptedSharedPreferences / memory+session as documented).
 - Treat the companion server URL as untrusted input; validate TLS when exposing beyond LAN.

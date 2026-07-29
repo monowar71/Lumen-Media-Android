@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.5] - 2026-07-29
+
+### Fixed
+
+- Debug APKs from CI and local builds share one project keystore, so `adb install -r` no longer fails with `INSTALL_FAILED_UPDATE_INCOMPATIBLE` between releases (one uninstall still required when upgrading from older ephemeral-CI builds).
+
 ## [0.1.4] - 2026-07-29
 
 ### Added
@@ -56,7 +62,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
 
-[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.4...HEAD
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.5...HEAD
+[0.1.5]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.5
 [0.1.4]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.4
 [0.1.3]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.3
 [0.1.2]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.2

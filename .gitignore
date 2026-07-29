@@ -11,6 +11,7 @@ captures/
 *.swp
 *.jks
 *.keystore
+!app/signing/lumenmedia-debug.keystore
 *.local
 .env
 .env.*

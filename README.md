@@ -34,7 +34,7 @@ export ANDROID_HOME=$HOME/Library/Android/sdk   # or your SDK path
 
 Default emulator API base URL: `http://10.0.2.2:8096`.
 
-**Do not commit** keystores, passwords, or `local.properties`.
+Debug builds are signed with the shared `app/signing/lumenmedia-debug.keystore` (CI + local), so sideload updates via `adb install -r` keep the same signature. **Do not commit** release/upload keystores, passwords for production keys, or `local.properties`.
 
 ## Architecture
 

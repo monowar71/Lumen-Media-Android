@@ -15,13 +15,25 @@ android {
         applicationId = "com.lumenmedia.android"
         minSdk = 26
         targetSdk = 36
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 6
+        versionName = "0.1.5"
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables.useSupportLibrary = true
 
         // Default LAN API host (override in Settings / Login if needed)
         buildConfigField("String", "DEFAULT_API_BASE_URL", "\"http://192.168.0.2:8096\"")
+    }
+
+    // Shared debug key so CI and local APKs share one signature (adb -r without uninstall).
+    // Passwords match the SDK default debug keystore; this key is for sideload only.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("signing/lumenmedia-debug.keystore")
+            storePassword = "android"
+            keyAlias = "androiddebugkey"
+            keyPassword = "android"
+            storeType = "PKCS12"
+        }
     }
 
     buildTypes {
@@ -36,6 +48,7 @@ android {
         debug {
             applicationIdSuffix = ".debug"
             versionNameSuffix = "-debug"
+            signingConfig = signingConfigs.getByName("debug")
         }
     }
 
