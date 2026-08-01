@@ -299,6 +299,7 @@ data class PlaybackDecisionRequest(
     val resumePositionMs: Long = 0,
     val profile: DeviceProfile,
     val forceHdrToSdr: Boolean = false,
+    val hdrToneMapMethod: String? = null,
     val audioLayout: String? = null,
 )
 
@@ -317,6 +318,13 @@ data class AudioLayoutOption(
     val id: String,
     val label: String,
     val channels: Int? = null,
+)
+
+@Serializable
+data class HdrToneMapMethodOption(
+    val id: String,
+    val label: String,
+    val hardware: Boolean = false,
 )
 
 @Serializable
@@ -361,6 +369,8 @@ data class PlaybackDecisionResponse(
     val toneMapActive: Boolean = false,
     val availableAudioLayouts: List<AudioLayoutOption> = emptyList(),
     val selectedAudioLayout: String = "stereo",
+    val availableHdrToneMapMethods: List<HdrToneMapMethodOption> = emptyList(),
+    val selectedHdrToneMapMethod: String? = null,
 )
 
 @Serializable
@@ -371,6 +381,7 @@ data class SetQualityRequest(
     val audioStreamId: String? = null,
     val subtitleStreamId: String? = null,
     val forceHdrToSdr: Boolean? = null,
+    val hdrToneMapMethod: String? = null,
     val audioLayout: String? = null,
 )
 

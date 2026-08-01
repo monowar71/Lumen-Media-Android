@@ -163,22 +163,43 @@ fun PlayerScreen(
             TrackMenuItem(id = layout.id, label = layout.label)
         }
     }
-    val hdrItems = remember(state.decision?.sourceHdr) {
-        if (state.decision?.sourceHdr.isNullOrBlank()) {
+    val hdrItems = remember(state.decision?.sourceHdr, state.decision?.availableHdrToneMapMethods) {
+        val methods = state.decision?.availableHdrToneMapMethods.orEmpty()
+        if (state.decision?.sourceHdr.isNullOrBlank() || methods.isEmpty()) {
             emptyList()
         } else {
-            listOf(
-                TrackMenuItem(
-                    id = "on",
-                    label = context.getString(R.string.player_hdr_to_sdr_on),
-                    subtitle = context.getString(R.string.player_hdr_to_sdr_on_hint),
-                ),
-                TrackMenuItem(
-                    id = "off",
-                    label = context.getString(R.string.player_hdr_to_sdr_off),
-                    subtitle = context.getString(R.string.player_hdr_to_sdr_off_hint),
-                ),
-            )
+            buildList {
+                add(
+                    TrackMenuItem(
+                        id = "off",
+                        label = context.getString(R.string.player_hdr_to_sdr_off),
+                        subtitle = context.getString(R.string.player_hdr_to_sdr_off_hint),
+                    ),
+                )
+                methods.forEach { method ->
+                    add(
+                        TrackMenuItem(
+                            id = method.id,
+                            label = method.label,
+                            subtitle = if (method.hardware) {
+                                context.getString(R.string.player_hdr_to_sdr_hw_hint)
+                            } else {
+                                context.getString(R.string.player_hdr_to_sdr_sw_hint)
+                            },
+                        ),
+                    )
+                }
+            }
+        }
+    }
+    val hdrSelectedId = remember(state.forceHdrToSdr, state.decision?.toneMapActive, state.selectedHdrToneMapMethod, state.decision?.selectedHdrToneMapMethod) {
+        if (state.forceHdrToSdr || state.decision?.toneMapActive == true) {
+            state.selectedHdrToneMapMethod
+                ?: state.decision?.selectedHdrToneMapMethod
+                ?: state.decision?.availableHdrToneMapMethods?.firstOrNull()?.id
+                ?: "off"
+        } else {
+            "off"
         }
     }
     val audioItems = remember(state.decision?.audioStreams) {
@@ -647,10 +668,10 @@ fun PlayerScreen(
                         OpenTrackMenu.HdrToSdr -> TrackDropdown(
                             title = hdrTitle,
                             items = hdrItems,
-                            selectedId = if (state.forceHdrToSdr) "on" else "off",
+                            selectedId = hdrSelectedId,
                             selectedFocus = menuSelectedFocus,
                             onSelect = { id ->
-                                viewModel.changeForceHdrToSdr(id == "on")
+                                if (id != null) viewModel.changeHdrToneMapMethod(id)
                                 openMenu = null
                                 revealControls()
                             },

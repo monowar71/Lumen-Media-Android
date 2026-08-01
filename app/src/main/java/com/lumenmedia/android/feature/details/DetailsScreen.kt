@@ -183,6 +183,9 @@ fun DetailsScreen(
                     trailerUrl = movie.trailerUrl,
                     mediaActions = movieActions,
                     tv = tv,
+                    // TV: focus the meta band first so the title/poster stay on-screen
+                    // (Play alone is below the fold and would scroll/clip the header).
+                    requestInitialHeaderFocus = tv,
                 )
             }
             if (movie.mediaSources.isNotEmpty()) {
@@ -263,7 +266,7 @@ fun DetailsScreen(
                     watchedBusy = state.markingWatched,
                     trailerUrl = series.trailerUrl,
                     tv = tv,
-                    focusableHeader = tv && playTarget == null && series.trailerUrl == null,
+                    requestInitialHeaderFocus = tv,
                     // Force D-pad Down from CTA into season chips (otherwise LazyColumn
                     // focus search jumps straight to episodes / season actions).
                     actionsDownFocus = if (tv && state.seasons.isNotEmpty()) {
@@ -640,7 +643,8 @@ private fun DetailScaffold(
     onMarkUnwatched: (() -> Unit)? = null,
     watchedBusy: Boolean = false,
     mediaActions: List<MediaFileActionItem> = emptyList(),
-    focusableHeader: Boolean = false,
+    /** TV: focus poster/title first so opening the card does not scroll to Play and clip the header. */
+    requestInitialHeaderFocus: Boolean = false,
     /** When set (TV), D-pad Down from the action row lands on season chips. */
     actionsDownFocus: FocusRequester? = null,
 ) {
@@ -662,31 +666,31 @@ private fun DetailScaffold(
         height = if (tv) 420 else 390,
     )
     val posterWidth = if (tv) 140.dp else 128.dp
-    val hasActions = (onPlay != null && playLabel != null) ||
+    val hasPlay = onPlay != null && playLabel != null
+    val hasActions = hasPlay ||
         (onPlayFromStart != null && playFromStartLabel != null) ||
         (onToggleWatched != null && watchedLabel != null) ||
         (onMarkUnwatched != null && unwatchedLabel != null) ||
         openTrailer != null ||
         mediaActions.isNotEmpty()
     val shape = RoundedCornerShape(if (tv) FpDimens.radiusLg else 0.dp)
+    val metaShape = RoundedCornerShape(FpDimens.radiusMd)
+    val headerFocus = remember { FocusRequester() }
+    val playFocus = remember { FocusRequester() }
+    if (tv && requestInitialHeaderFocus) {
+        LaunchedEffect(title) {
+            runCatching { headerFocus.requestFocus() }
+        }
+    }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .then(
-                if (focusableHeader) {
-                    Modifier
-                        .clip(shape)
-                        .tvFocusable(scaleFocused = 1f, shape = shape)
-                } else {
-                    Modifier
-                },
-            ),
+            .clip(shape),
     ) {
         Box(
             modifier = Modifier
                 .matchParentSize()
-                .clip(shape)
                 .background(MaterialTheme.colorScheme.surface),
         ) {
             if (backdropModel != null) {
@@ -729,62 +733,85 @@ private fun DetailScaffold(
                     vertical = if (tv) FpDimens.space16 else FpDimens.space20,
                 ),
         ) {
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(if (tv) FpDimens.space20 else FpDimens.space14),
-            ) {
-                Box(
-                    modifier = Modifier
-                        .width(posterWidth)
-                        .aspectRatio(2f / 3f)
-                        .clip(RoundedCornerShape(FpDimens.radiusMd))
-                        .background(MaterialTheme.colorScheme.surfaceVariant),
-                ) {
-                    if (posterModel != null) {
-                        AsyncImage(
-                            model = posterModel,
-                            contentDescription = title,
-                            contentScale = ContentScale.Crop,
-                            modifier = Modifier.fillMaxSize(),
-                        )
-                    }
-                    MediaProgressBar(progress = progress, modifier = Modifier.align(Alignment.BottomStart))
-                }
-                Column(
-                    modifier = Modifier
-                        .weight(1f)
-                        .align(Alignment.CenterVertically),
-                    verticalArrangement = Arrangement.spacedBy(FpDimens.space6),
-                ) {
-                    Text(
-                        title,
-                        style = if (tv) {
-                            MaterialTheme.typography.headlineMedium
+            // Meta band is a separate focus target above CTAs. Without it, D-pad lands on
+            // Play and LazyColumn bring-into-view clips the title/poster.
+            Box(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .then(
+                        if (tv) {
+                            Modifier
+                                .focusRequester(headerFocus)
+                                .focusProperties {
+                                    if (hasPlay) {
+                                        down = playFocus
+                                    } else if (actionsDownFocus != null) {
+                                        down = actionsDownFocus
+                                    }
+                                }
+                                .tvFocusable(scaleFocused = 1f, shape = metaShape)
                         } else {
-                            MaterialTheme.typography.headlineSmall
+                            Modifier
                         },
-                        fontWeight = FontWeight.ExtraBold,
-                        maxLines = 3,
-                        overflow = TextOverflow.Ellipsis,
-                    )
-                    if (subtitle.isNotBlank()) {
-                        Text(
-                            subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        )
-                    }
-                    if (tv && genres.isNotEmpty()) {
-                        GenreBadgeRow(genres = genres)
-                    }
-                    if (tv) {
-                        overview?.let {
-                            Text(
-                                it,
-                                style = MaterialTheme.typography.bodyMedium,
-                                maxLines = 4,
-                                overflow = TextOverflow.Ellipsis,
-                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
+                    ),
+            ) {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(if (tv) FpDimens.space20 else FpDimens.space14),
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(posterWidth)
+                            .aspectRatio(2f / 3f)
+                            .clip(RoundedCornerShape(FpDimens.radiusMd))
+                            .background(MaterialTheme.colorScheme.surfaceVariant),
+                    ) {
+                        if (posterModel != null) {
+                            AsyncImage(
+                                model = posterModel,
+                                contentDescription = title,
+                                contentScale = ContentScale.Crop,
+                                modifier = Modifier.fillMaxSize(),
                             )
+                        }
+                        MediaProgressBar(progress = progress, modifier = Modifier.align(Alignment.BottomStart))
+                    }
+                    Column(
+                        modifier = Modifier
+                            .weight(1f)
+                            .align(Alignment.CenterVertically),
+                        verticalArrangement = Arrangement.spacedBy(FpDimens.space6),
+                    ) {
+                        Text(
+                            title,
+                            style = if (tv) {
+                                MaterialTheme.typography.headlineMedium
+                            } else {
+                                MaterialTheme.typography.headlineSmall
+                            },
+                            fontWeight = FontWeight.ExtraBold,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                        if (subtitle.isNotBlank()) {
+                            Text(
+                                subtitle,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                        if (tv && genres.isNotEmpty()) {
+                            GenreBadgeRow(genres = genres)
+                        }
+                        if (tv) {
+                            overview?.let {
+                                Text(
+                                    it,
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    maxLines = 4,
+                                    overflow = TextOverflow.Ellipsis,
+                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.92f),
+                                )
+                            }
                         }
                     }
                 }
@@ -813,7 +840,14 @@ private fun DetailScaffold(
                     modifier = Modifier
                         .padding(top = FpDimens.space14)
                         .then(
-                            if (actionsDownFocus != null) {
+                            if (tv) {
+                                Modifier.focusProperties {
+                                    up = headerFocus
+                                    if (actionsDownFocus != null) {
+                                        down = actionsDownFocus
+                                    }
+                                }
+                            } else if (actionsDownFocus != null) {
                                 Modifier.focusProperties { down = actionsDownFocus }
                             } else {
                                 Modifier
@@ -826,7 +860,11 @@ private fun DetailScaffold(
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
                     if (onPlay != null && playLabel != null) {
-                        FpButton(onClick = onPlay, label = playLabel)
+                        FpButton(
+                            onClick = onPlay,
+                            label = playLabel,
+                            modifier = if (tv) Modifier.focusRequester(playFocus) else Modifier,
+                        )
                     }
                     if (onPlayFromStart != null && playFromStartLabel != null) {
                         FpButton(

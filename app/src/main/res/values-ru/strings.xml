@@ -147,6 +147,8 @@
     <string name="player_hdr_to_sdr_on_hint">Тон-маппинг на сервере</string>
     <string name="player_hdr_to_sdr_off">Оставить HDR</string>
     <string name="player_hdr_to_sdr_off_hint">Если дисплей поддерживает</string>
+    <string name="player_hdr_to_sdr_hw_hint">GPU тонмап (быстро)</string>
+    <string name="player_hdr_to_sdr_sw_hint">Software тонмап (тяжелее)</string>
     <string name="player_off">Выкл.</string>
     <string name="player_audio_fallback">Аудио</string>
     <string name="player_subtitle_fallback">Субтитры</string>

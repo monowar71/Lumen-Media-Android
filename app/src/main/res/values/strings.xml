@@ -156,6 +156,8 @@
     <string name="player_hdr_to_sdr_on_hint">Server tone-mapping</string>
     <string name="player_hdr_to_sdr_off">Keep HDR</string>
     <string name="player_hdr_to_sdr_off_hint">When the display supports it</string>
+    <string name="player_hdr_to_sdr_hw_hint">GPU tonemap (fast)</string>
+    <string name="player_hdr_to_sdr_sw_hint">Software tonemap (heavier)</string>
     <string name="player_off">Off</string>
     <string name="player_audio_fallback">Audio</string>
     <string name="player_subtitle_fallback">Subtitle</string>

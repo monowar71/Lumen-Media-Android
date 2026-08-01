@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.8] - 2026-08-02
+
+### Added
+
+- Player HDR→SDR menu lists Off plus server methods (Hardware VAAPI / hable / mobius / reinhard / bt2390) and can switch mid-playback via `hdrToneMapMethod`.
+
+### Fixed
+
+- TV details: restore initial focus on the poster/title band so opening a card does not jump to «Смотреть» and clip the header; D-pad Up from CTAs returns to the meta band.
+- Player network Mbps HUD wires HTTP downloads into `DefaultBandwidthMeter` (`TransferListener` on the data source).
+
 ## [0.1.7] - 2026-08-02
 
 ### Fixed
@@ -78,7 +89,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
 
-[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.7...HEAD
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.8...HEAD
+[0.1.8]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.8
 [0.1.7]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.7
 [0.1.6]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.6
 [0.1.5]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.5

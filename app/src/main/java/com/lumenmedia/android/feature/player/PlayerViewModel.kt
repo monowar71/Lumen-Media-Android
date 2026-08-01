@@ -59,6 +59,7 @@ data class PlayerUiState(
     val selectedAudioId: String? = null,
     val selectedSubtitleId: String? = null,
     val forceHdrToSdr: Boolean = false,
+    val selectedHdrToneMapMethod: String? = null,
     val selectedAudioLayout: String? = null,
     val baseUrl: String = "",
     val positionMs: Long = 0L,
@@ -364,6 +365,7 @@ class PlayerViewModel @Inject constructor(
                         selectedQualityId = decision.selectedQualityId,
                         selectedAudioId = audioId,
                         forceHdrToSdr = it.forceHdrToSdr || autoForce || decision.toneMapActive,
+                        selectedHdrToneMapMethod = decision.selectedHdrToneMapMethod,
                         selectedAudioLayout = decision.selectedAudioLayout,
                         baseUrl = baseUrl,
                         durationMs = decision.durationMs ?: it.durationMs,
@@ -447,8 +449,11 @@ class PlayerViewModel @Inject constructor(
         selectedSubtitleId: String?,
     ) {
         val token = sessionStore.accessToken
+        // Feed the same BandwidthMeter ExoPlayer uses for the HUD — without a
+        // TransferListener, bitrateEstimate stays at the static initial guess.
         val factory = DefaultHttpDataSource.Factory()
             .setAllowCrossProtocolRedirects(true)
+            .setTransferListener(bandwidthMeter)
             .setDefaultRequestProperties(
                 buildMap {
                     if (!token.isNullOrBlank()) put("Authorization", "Bearer $token")
@@ -609,14 +614,28 @@ class PlayerViewModel @Inject constructor(
         }
     }
 
-    fun changeForceHdrToSdr(force: Boolean) {
+    fun changeHdrToneMapMethod(methodId: String) {
         if (offlinePlayback) return
         val decision = _state.value.decision ?: return
         if (decision.sourceHdr.isNullOrBlank()) return
-        if (!DeviceProfileFactory.supportsHdr(context) && !force) return
-        if (force == _state.value.forceHdrToSdr) return
+        val off = methodId == "off"
+        if (off && !DeviceProfileFactory.supportsHdr(context)) return
+        val currentId = if (_state.value.forceHdrToSdr || decision.toneMapActive) {
+            _state.value.selectedHdrToneMapMethod
+                ?: decision.selectedHdrToneMapMethod
+                ?: "off"
+        } else {
+            "off"
+        }
+        if (methodId == currentId) return
         val position = absolutePosition()
-        _state.update { it.copy(forceHdrToSdr = force, buffering = true) }
+        _state.update {
+            it.copy(
+                forceHdrToSdr = !off,
+                selectedHdrToneMapMethod = if (off) it.selectedHdrToneMapMethod else methodId,
+                buffering = true,
+            )
+        }
         viewModelScope.launch {
             runCatching {
                 repository.setQuality(
@@ -625,7 +644,8 @@ class PlayerViewModel @Inject constructor(
                         qualityId = _state.value.selectedQualityId,
                         mode = decision.mode,
                         resumePositionMs = position,
-                        forceHdrToSdr = force,
+                        forceHdrToSdr = !off,
+                        hdrToneMapMethod = if (off) null else methodId,
                         audioLayout = _state.value.selectedAudioLayout,
                     ),
                 )
@@ -639,7 +659,8 @@ class PlayerViewModel @Inject constructor(
                     it.copy(
                         decision = next,
                         selectedQualityId = next.selectedQualityId,
-                        forceHdrToSdr = force || next.toneMapActive,
+                        forceHdrToSdr = next.toneMapActive || !off,
+                        selectedHdrToneMapMethod = next.selectedHdrToneMapMethod,
                         selectedAudioLayout = next.selectedAudioLayout,
                         buffering = false,
                     )
@@ -731,6 +752,8 @@ class PlayerViewModel @Inject constructor(
                         selectedQualityId = next.selectedQualityId,
                         selectedAudioLayout = next.selectedAudioLayout,
                         forceHdrToSdr = it.forceHdrToSdr || next.toneMapActive,
+                        selectedHdrToneMapMethod = next.selectedHdrToneMapMethod
+                            ?: it.selectedHdrToneMapMethod,
                     )
                 }
             }.onFailure {
