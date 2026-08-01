@@ -9,7 +9,7 @@ import com.lumenmedia.android.core.network.LumenMediaApi
 import com.lumenmedia.android.core.network.TokenAuthenticator
 import com.lumenmedia.android.core.offline.OfflineCacheDao
 import com.lumenmedia.android.core.offline.OfflineCacheDatabase
-import com.jakewharton.retrofit2.converter.kotlinx.serialization.asConverterFactory
+import retrofit2.converter.kotlinx.serialization.asConverterFactory
 import dagger.Module
 import dagger.Provides
 import dagger.hilt.InstallIn
@@ -111,7 +111,7 @@ object AppModule {
     @Singleton
     fun provideOfflineDatabase(@ApplicationContext context: Context): OfflineCacheDatabase =
         Room.databaseBuilder(context, OfflineCacheDatabase::class.java, "offline_cache.db")
-            .fallbackToDestructiveMigration()
+            .fallbackToDestructiveMigration(dropAllTables = true)
             .build()
 
     @Provides

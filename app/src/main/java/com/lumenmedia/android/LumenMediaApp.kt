@@ -1,8 +1,11 @@
 package com.lumenmedia.android
 
 import android.app.Application
-import coil.ImageLoader
-import coil.ImageLoaderFactory
+import coil3.ImageLoader
+import coil3.PlatformContext
+import coil3.SingletonImageLoader
+import coil3.network.okhttp.OkHttpNetworkFetcherFactory
+import coil3.request.crossfade
 import com.lumenmedia.android.core.offline.OfflineDownloadManager
 import com.lumenmedia.android.core.preferences.SessionStore
 import com.lumenmedia.android.core.preferences.SettingsRepository
@@ -17,7 +20,7 @@ import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 
 @HiltAndroidApp
-class LumenMediaApp : Application(), ImageLoaderFactory {
+class LumenMediaApp : Application(), SingletonImageLoader.Factory {
     @Inject lateinit var sessionStore: SessionStore
 
     @Inject lateinit var settingsRepository: SettingsRepository
@@ -41,10 +44,13 @@ class LumenMediaApp : Application(), ImageLoaderFactory {
         }
     }
 
-    override fun newImageLoader(): ImageLoader {
+    override fun newImageLoader(context: PlatformContext): ImageLoader {
         val entryPoint = EntryPointAccessors.fromApplication(this, ImageLoaderEntryPoint::class.java)
-        return ImageLoader.Builder(this)
-            .okHttpClient(entryPoint.okHttpClient())
+        val okHttpClient = entryPoint.okHttpClient()
+        return ImageLoader.Builder(context)
+            .components {
+                add(OkHttpNetworkFetcherFactory(callFactory = { okHttpClient }))
+            }
             .crossfade(true)
             .build()
     }
