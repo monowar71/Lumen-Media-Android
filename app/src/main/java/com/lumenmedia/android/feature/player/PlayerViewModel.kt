@@ -669,7 +669,7 @@ class PlayerViewModel @Inject constructor(
                         qualityId = _state.value.selectedQualityId,
                         mode = decision.mode,
                         resumePositionMs = position,
-                        forceHdrToSdr = _state.value.forceHdrToSdr,
+                        // Omit — server keeps session.ForceHdrToSdr until explicitly changed.
                         audioLayout = layoutId,
                     ),
                 )
@@ -715,7 +715,7 @@ class PlayerViewModel @Inject constructor(
                         qualityId = qualityId,
                         mode = mode,
                         resumePositionMs = position,
-                        forceHdrToSdr = _state.value.forceHdrToSdr,
+                        // Omit — server keeps session.ForceHdrToSdr until explicitly changed.
                         audioLayout = _state.value.selectedAudioLayout,
                     ),
                 )

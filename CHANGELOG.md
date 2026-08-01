@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.7] - 2026-08-02
+
+### Fixed
+
+- Do not send `forceHdrToSdr` on quality/audio `set-quality` calls so the server keeps the session HDR→SDR flag until the player menu toggles it.
+
 ## [0.1.6] - 2026-07-29
 
 ### Added
@@ -72,7 +78,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 - Initial LumenMedia Android import for the LumenMedia stack.
 - Open-source repository scaffolding (license, contributing guide, security policy, CI, issue/PR templates).
 
-[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.6...HEAD
+[Unreleased]: https://github.com/monowar71/Lumen-Media-Android/compare/v0.1.7...HEAD
+[0.1.7]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.7
 [0.1.6]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.6
 [0.1.5]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.5
 [0.1.4]: https://github.com/monowar71/Lumen-Media-Android/releases/tag/v0.1.4
