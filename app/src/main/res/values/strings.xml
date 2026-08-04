@@ -115,6 +115,10 @@
     <string name="details_trailer">Trailer</string>
     <string name="details_download">Download</string>
     <string name="details_seasons_count">%d seasons</string>
+    <string name="details_status_continuing">Continuing</string>
+    <string name="details_status_ended">Ended</string>
+    <string name="details_runtime_hours_minutes">%1$dh %2$dm</string>
+    <string name="details_runtime_minutes">%1$d min</string>
     <string name="details_season">Season %d</string>
     <string name="details_episodes">Episodes</string>
     <string name="details_watched">Watched</string>

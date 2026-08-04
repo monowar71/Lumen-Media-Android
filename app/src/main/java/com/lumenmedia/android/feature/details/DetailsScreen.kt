@@ -46,6 +46,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -68,7 +69,9 @@ import com.lumenmedia.android.core.designsystem.isTvDevice
 import com.lumenmedia.android.core.designsystem.tvFocusable
 import com.lumenmedia.android.core.model.EpisodeSummary
 import com.lumenmedia.android.core.model.MediaSource
+import com.lumenmedia.android.core.model.MovieDetail
 import com.lumenmedia.android.core.model.Person
+import com.lumenmedia.android.core.model.SeriesDetail
 import com.lumenmedia.android.core.offline.CachedEpisodeStatus
 import com.lumenmedia.android.core.offline.OfflineEpisodeState
 import com.lumenmedia.android.core.util.MediaFormatLabels
@@ -135,8 +138,11 @@ fun DetailsScreen(
             item(key = "header") {
                 DetailScaffold(
                     title = movie.title,
-                    subtitle = listOfNotNull(movie.year?.toString(), movie.officialRating)
-                        .joinToString(" · "),
+                    originalTitle = movie.originalTitle?.takeIf {
+                        it.isNotBlank() && !it.equals(movie.title, ignoreCase = false)
+                    },
+                    tagline = movie.tagline,
+                    subtitle = buildMovieMetaSubtitle(movie),
                     genres = movie.genres.orEmpty(),
                     overview = movie.overview,
                     backdrop = movie.artwork.backdrop ?: movie.artwork.poster,
@@ -225,10 +231,10 @@ fun DetailsScreen(
             item(key = "header") {
                 DetailScaffold(
                     title = series.title,
-                    subtitle = listOfNotNull(
-                        series.year?.toString(),
-                        stringResource(R.string.details_seasons_count, series.seasonCount),
-                    ).joinToString(" · "),
+                    originalTitle = series.originalTitle?.takeIf {
+                        it.isNotBlank() && !it.equals(series.title, ignoreCase = false)
+                    },
+                    subtitle = buildSeriesMetaSubtitle(series),
                     genres = series.genres.orEmpty(),
                     overview = series.overview,
                     backdrop = series.artwork.backdrop ?: series.artwork.poster,
@@ -536,6 +542,20 @@ private fun EpisodeRow(
                     modifier = Modifier.padding(top = FpDimens.space2),
                 )
             }
+            val episodeMeta = listOfNotNull(
+                episode.runtimeMs?.takeIf { it > 0 }?.let { formatRuntimeMs(it) },
+                episode.airDate?.takeIf { it.isNotBlank() },
+            ).joinToString(" · ")
+            if (episodeMeta.isNotBlank()) {
+                Text(
+                    text = episodeMeta,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.padding(top = FpDimens.space2),
+                )
+            }
             if (!tv) {
                 Row(
                     horizontalArrangement = Arrangement.spacedBy(FpDimens.space4),
@@ -633,6 +653,8 @@ private fun DetailScaffold(
     playLabel: String?,
     onPlay: (() -> Unit)?,
     tv: Boolean,
+    originalTitle: String? = null,
+    tagline: String? = null,
     genres: List<String> = emptyList(),
     trailerUrl: String? = null,
     playFromStartLabel: String? = null,
@@ -792,6 +814,25 @@ private fun DetailScaffold(
                             maxLines = 3,
                             overflow = TextOverflow.Ellipsis,
                         )
+                        if (!originalTitle.isNullOrBlank()) {
+                            Text(
+                                originalTitle,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
+                        if (!tagline.isNullOrBlank()) {
+                            Text(
+                                tagline,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontStyle = FontStyle.Italic,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 2,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                         if (subtitle.isNotBlank()) {
                             Text(
                                 subtitle,
@@ -1091,6 +1132,53 @@ private fun progressFraction(positionMs: Long?, runtimeMs: Long?): Float {
     val runtime = runtimeMs ?: return 0f
     if (position <= 0L || runtime <= 0L) return 0f
     return (position.toFloat() / runtime.toFloat()).coerceIn(0f, 1f)
+}
+
+@Composable
+private fun buildMovieMetaSubtitle(movie: MovieDetail): String {
+    val parts = buildList {
+        movie.year?.let { add(it.toString()) }
+        movie.runtimeMs?.takeIf { it > 0 }?.let { add(formatRuntimeMs(it)) }
+        movie.officialRating?.takeIf { it.isNotBlank() }?.let { add(it) }
+        movie.communityRating?.let { add("★ ${"%.1f".format(it)}") }
+        movie.studios?.takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
+    }
+    return parts.joinToString(" · ")
+}
+
+@Composable
+private fun buildSeriesMetaSubtitle(series: SeriesDetail): String {
+    val yearLabel = when {
+        series.year != null && series.endYear != null -> "${series.year}–${series.endYear}"
+        series.year != null -> series.year.toString()
+        else -> null
+    }
+    val statusLabel = when (series.status) {
+        "Ended" -> stringResource(R.string.details_status_ended)
+        "Continuing" -> stringResource(R.string.details_status_continuing)
+        else -> series.status?.takeIf { it.isNotBlank() }
+    }
+    val parts = buildList {
+        yearLabel?.let { add(it) }
+        statusLabel?.let { add(it) }
+        series.officialRating?.takeIf { it.isNotBlank() }?.let { add(it) }
+        series.communityRating?.let { add("★ ${"%.1f".format(it)}") }
+        series.studios?.takeIf { it.isNotEmpty() }?.let { add(it.joinToString(", ")) }
+        add(stringResource(R.string.details_seasons_count, series.seasonCount))
+    }
+    return parts.joinToString(" · ")
+}
+
+@Composable
+private fun formatRuntimeMs(ms: Long): String {
+    val totalMinutes = ((ms + 30_000) / 60_000).toInt().coerceAtLeast(1)
+    val hours = totalMinutes / 60
+    val minutes = totalMinutes % 60
+    return if (hours > 0) {
+        stringResource(R.string.details_runtime_hours_minutes, hours, minutes)
+    } else {
+        stringResource(R.string.details_runtime_minutes, minutes)
+    }
 }
 
 private fun resolveSeriesPlayTarget(

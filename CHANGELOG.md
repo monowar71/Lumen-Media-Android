@@ -6,6 +6,12 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.10] - 2026-08-04
+
+### Added
+
+- Detail meta row parity with web: year–endYear, status, ratings, runtime, studios, tagline/originalTitle; episode rows show air date.
+
 ## [0.1.8] - 2026-08-02
 
 ### Added

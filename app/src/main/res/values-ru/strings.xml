@@ -107,6 +107,10 @@
     <string name="details_trailer">Трейлер</string>
     <string name="details_download">Скачать</string>
     <string name="details_seasons_count">%d сез.</string>
+    <string name="details_status_continuing">Идёт</string>
+    <string name="details_status_ended">Завершён</string>
+    <string name="details_runtime_hours_minutes">%1$d ч %2$d мин</string>
+    <string name="details_runtime_minutes">%1$d мин</string>
     <string name="details_season">Сезон %d</string>
     <string name="details_episodes">Эпизоды</string>
     <string name="details_watched">Просмотрено</string>
