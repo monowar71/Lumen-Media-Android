@@ -30,6 +30,7 @@
     <string name="search_no_results_body">Попробуйте другое название или написание.</string>
     <string name="search_movies">Фильмы</string>
     <string name="search_series">Сериалы</string>
+    <string name="search_torrent">Торрент</string>
     <string name="search_episodes">Эпизоды</string>
     <string name="search_episode_fallback">Эпизод</string>
 

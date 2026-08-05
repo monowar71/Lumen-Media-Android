@@ -62,4 +62,34 @@ class MediaFormatLabelsTest {
         assertThat(paths.audioLabel)
             .isEqualTo("Dolby Digital+ · 5.1 → AAC · Stereo")
     }
+
+    @Test
+    fun playbackFormatPaths_hides_unknown_source_codec() {
+        val paths = MediaFormatLabels.playbackFormatPaths(
+            method = "Transcode",
+            sourceCodec = "unknown",
+            sourceHdr = null,
+            sourceWidth = null,
+            sourceHeight = null,
+            sourceAudioCodec = "unknown",
+            sourceAudioChannels = null,
+            sourceAudioTitle = null,
+            selectedQualityId = "auto",
+            availableQualities = emptyList(),
+            toneMapActive = false,
+            selectedAudioLayout = "stereo",
+        )
+        assertThat(paths.videoLabel).isEqualTo("H.264")
+        assertThat(paths.audioLabel).isEqualTo("AAC · Stereo")
+    }
+
+    @Test
+    fun formatTorrentStatsLabel_builds_hud_chip() {
+        assertThat(
+            MediaFormatLabels.formatTorrentStatsLabel(12, 45, 2_100_000),
+        ).isEqualTo("↓ 2.1 MB/s · 12↑ · 45 peers")
+        assertThat(
+            MediaFormatLabels.formatTorrentStatsLabel(0, 0, 0),
+        ).isEqualTo("0↑ · 0 peers")
+    }
 }

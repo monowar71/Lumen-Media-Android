@@ -33,6 +33,7 @@
     <string name="search_no_results_body">Try another title or spelling.</string>
     <string name="search_movies">Movies</string>
     <string name="search_series">Series</string>
+    <string name="search_torrent">Torrent</string>
     <string name="search_episodes">Episodes</string>
     <string name="search_episode_fallback">Episode</string>
 

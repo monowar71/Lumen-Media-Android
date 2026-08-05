@@ -41,8 +41,8 @@ object MediaFormatLabels {
     }
 
     private fun videoCodecLabel(codec: String?): String? {
-        val c = codec?.lowercase().orEmpty()
-        if (c.isEmpty()) return null
+        val c = codec?.lowercase()?.trim().orEmpty()
+        if (c.isEmpty() || c == "unknown" || c == "und" || c == "none") return null
         return when (c) {
             "h264", "avc", "avc1" -> "H.264"
             "hevc", "h265", "hvc1" -> "HEVC"
@@ -74,7 +74,7 @@ object MediaFormatLabels {
             c == "opus" -> "Opus"
             c == "aac" || c == "mp4a" -> "AAC"
             c == "pcm" || c.startsWith("pcm_") -> "PCM"
-            c.isEmpty() -> null
+            c.isEmpty() || c == "unknown" || c == "und" || c == "none" -> null
             else -> codec!!.uppercase()
         }
     }
@@ -197,6 +197,27 @@ object MediaFormatLabels {
             mbps >= 10 -> "${"%.1f".format(java.util.Locale.US, mbps)} Mbps"
             else -> "${"%.2f".format(java.util.Locale.US, mbps)} Mbps"
         }
+    }
+
+    /** Compact torrent HUD: "↓ 2.1 MB/s · 12↑ · 45 peers". */
+    fun formatTorrentStatsLabel(seeders: Int, peers: Int, downloadSpeedBytesPerSec: Long): String {
+        val parts = mutableListOf<String>()
+        val speed = downloadSpeedBytesPerSec
+        when {
+            speed >= 1_000_000L -> {
+                val mb = speed / 1_000_000.0
+                parts += if (speed >= 10_000_000L) {
+                    "↓ ${mb.toInt()} MB/s"
+                } else {
+                    "↓ ${"%.1f".format(java.util.Locale.US, mb)} MB/s"
+                }
+            }
+            speed >= 1000L -> parts += "↓ ${speed / 1000} KB/s"
+            speed > 0L -> parts += "↓ $speed B/s"
+        }
+        parts += "${seeders}↑"
+        parts += "$peers peers"
+        return parts.joinToString(" · ")
     }
 
     fun formatBytes(bytes: Long): String? {

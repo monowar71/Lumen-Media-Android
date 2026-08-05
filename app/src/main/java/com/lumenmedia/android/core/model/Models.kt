@@ -378,6 +378,33 @@ data class PlaybackDecisionResponse(
     val selectedAudioLayout: String = "stereo",
     val availableHdrToneMapMethods: List<HdrToneMapMethodOption> = emptyList(),
     val selectedHdrToneMapMethod: String? = null,
+    val torrentStats: TorrentPlaybackStats? = null,
+    val isTorrentSource: Boolean = false,
+    val probedFormat: ProbedFormat? = null,
+)
+
+@Serializable
+data class TorrentPlaybackStats(
+    val seeders: Int = 0,
+    val peers: Int = 0,
+    val downloadSpeedBytesPerSec: Long = 0,
+)
+
+@Serializable
+data class ProbedFormat(
+    val videoCodec: String? = null,
+    val videoHdr: String? = null,
+    val width: Int? = null,
+    val height: Int? = null,
+    val audioCodec: String? = null,
+    val audioChannels: Int? = null,
+    val audioTitle: String? = null,
+)
+
+@Serializable
+data class PlaybackPingResponse(
+    val torrentStats: TorrentPlaybackStats? = null,
+    val probedFormat: ProbedFormat? = null,
 )
 
 @Serializable

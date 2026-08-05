@@ -17,8 +17,10 @@ import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
+import com.lumenmedia.android.core.model.ProbedFormat
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.SetQualityRequest
+import com.lumenmedia.android.core.model.TorrentPlaybackStats
 import com.lumenmedia.android.core.model.UserData
 import com.lumenmedia.android.core.network.ItemDetailResult
 import com.lumenmedia.android.core.network.LumenMediaRepository
@@ -81,6 +83,10 @@ data class PlayerUiState(
     /** Source or source→output audio summary for the HUD. */
     val audioFormatLabel: String? = null,
     val networkMbpsLabel: String? = null,
+    /** Torrent HUD chip (seeders / peers / download speed), null when not a torrent. */
+    val torrentStatsLabel: String? = null,
+    /** Play-time probe override for format HUD (torrent). */
+    val probedFormat: ProbedFormat? = null,
     val canMarkUnwatched: Boolean = false,
     val markingUnwatched: Boolean = false,
 )
@@ -179,22 +185,26 @@ class PlayerViewModel @Inject constructor(
 
     private fun refreshFormatBadges() {
         val decision = _state.value.decision
+        val probed = _state.value.probedFormat ?: decision?.probedFormat
         val video = mediaSource?.streams?.firstOrNull { it.kind.equals("Video", ignoreCase = true) }
         val audioFromDecision = decision?.audioStreams
             ?.firstOrNull { it.id == _state.value.selectedAudioId }
         val audioStream = mediaSource?.streams
             ?.firstOrNull { it.kind.equals("Audio", ignoreCase = true) && it.isDefault == true }
             ?: mediaSource?.streams?.firstOrNull { it.kind.equals("Audio", ignoreCase = true) }
-        val sourceAudioCodec = audioFromDecision?.codec ?: audioStream?.codec
-        val sourceAudioChannels = audioFromDecision?.channels ?: audioStream?.channels
-        val sourceAudioTitle = audioFromDecision?.title ?: audioStream?.title
-        val sourceHdr = video?.hdr ?: decision?.sourceHdr
+        val sourceCodec = probed?.videoCodec ?: video?.codec
+        val sourceHdr = probed?.videoHdr ?: video?.hdr ?: decision?.sourceHdr
+        val sourceWidth = probed?.width ?: video?.width
+        val sourceHeight = probed?.height ?: video?.height
+        val sourceAudioCodec = probed?.audioCodec ?: audioFromDecision?.codec ?: audioStream?.codec
+        val sourceAudioChannels = probed?.audioChannels ?: audioFromDecision?.channels ?: audioStream?.channels
+        val sourceAudioTitle = probed?.audioTitle ?: audioFromDecision?.title ?: audioStream?.title
         val paths = MediaFormatLabels.playbackFormatPaths(
             method = decision?.method,
-            sourceCodec = video?.codec,
+            sourceCodec = sourceCodec,
             sourceHdr = sourceHdr,
-            sourceWidth = video?.width,
-            sourceHeight = video?.height,
+            sourceWidth = sourceWidth,
+            sourceHeight = sourceHeight,
             sourceAudioCodec = sourceAudioCodec,
             sourceAudioChannels = sourceAudioChannels,
             sourceAudioTitle = sourceAudioTitle,
@@ -371,6 +381,8 @@ class PlayerViewModel @Inject constructor(
                         durationMs = decision.durationMs ?: it.durationMs,
                         positionMs = decision.startPositionMs ?: resumeMs,
                         offline = false,
+                        torrentStatsLabel = formatTorrentStats(decision.torrentStats),
+                        probedFormat = decision.probedFormat,
                     )
                 }
                 refreshFormatBadges()
@@ -968,11 +980,37 @@ class PlayerViewModel @Inject constructor(
         pingJob?.cancel()
         if (offlinePlayback) return
         pingJob = viewModelScope.launch {
+            val torrent = _state.value.decision?.isTorrentSource == true
+            val intervalMs = if (torrent) TORRENT_PING_INTERVAL_MS else PING_INTERVAL_MS
             while (isActive) {
-                delay(30_000)
-                sessionId?.let { repository.pingSession(it) }
+                val sid = sessionId
+                if (sid != null) {
+                    repository.pingSession(sid).onSuccess { res ->
+                        val stats = res.torrentStats
+                        val probed = res.probedFormat
+                        if (stats != null || probed != null) {
+                            _state.update {
+                                it.copy(
+                                    torrentStatsLabel = formatTorrentStats(stats) ?: it.torrentStatsLabel,
+                                    probedFormat = probed ?: it.probedFormat,
+                                )
+                            }
+                            if (probed != null) refreshFormatBadges()
+                        }
+                    }
+                }
+                delay(intervalMs)
             }
         }
+    }
+
+    private fun formatTorrentStats(stats: TorrentPlaybackStats?): String? {
+        if (stats == null) return null
+        return MediaFormatLabels.formatTorrentStatsLabel(
+            seeders = stats.seeders,
+            peers = stats.peers,
+            downloadSpeedBytesPerSec = stats.downloadSpeedBytesPerSec,
+        )
     }
 
     private suspend fun reportProgress(stateName: String) {
@@ -1035,5 +1073,7 @@ class PlayerViewModel @Inject constructor(
 
     companion object {
         private const val OFFLINE_SESSION_ID = "offline"
+        private const val PING_INTERVAL_MS = 30_000L
+        private const val TORRENT_PING_INTERVAL_MS = 5_000L
     }
 }

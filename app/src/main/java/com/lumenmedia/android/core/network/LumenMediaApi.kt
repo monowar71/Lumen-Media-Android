@@ -13,6 +13,7 @@ import com.lumenmedia.android.core.model.MovieDetail
 import com.lumenmedia.android.core.model.PagedResult
 import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
+import com.lumenmedia.android.core.model.PlaybackPingResponse
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.ProgressResponse
 import com.lumenmedia.android.core.model.RefreshRequest
@@ -120,7 +121,7 @@ interface LumenMediaApi {
     ): PlaybackDecisionResponse
 
     @POST("api/v1/playback/{sessionId}/ping")
-    suspend fun pingSession(@Path("sessionId") sessionId: String)
+    suspend fun pingSession(@Path("sessionId") sessionId: String): PlaybackPingResponse
 
     @POST("api/v1/playback/{sessionId}/stop")
     suspend fun stopSession(@Path("sessionId") sessionId: String)

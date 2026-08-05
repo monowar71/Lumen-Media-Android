@@ -401,6 +401,7 @@ fun SettingsScreen(
                     options = listOf(
                         "Movies" to stringResource(R.string.search_movies),
                         "Series" to stringResource(R.string.search_series),
+                        "Torrent" to stringResource(R.string.search_torrent),
                     ),
                     selectedId = state.newLibraryType,
                     onSelect = viewModel::onNewLibraryType,

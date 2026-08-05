@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.11] - 2026-08-05
+
+### Added
+
+- Torrent library type in settings; player HUD shows TorrServer seeders / peers / download speed.
+- Player applies play-time `probedFormat` from ping for torrent codec labels.
+- Hide placeholder `unknown` codecs in format HUD.
+
 ## [0.1.10] - 2026-08-04
 
 ### Added

@@ -537,6 +537,7 @@ fun PlayerScreen(
                             val hudChips = buildList {
                                 addAll(state.videoBadges)
                                 addAll(state.audioBadges)
+                                state.torrentStatsLabel?.let { add(it) }
                                 state.networkMbpsLabel?.let {
                                     add(stringResource(R.string.player_network_load, it))
                                 }
