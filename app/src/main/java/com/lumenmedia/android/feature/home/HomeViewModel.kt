@@ -32,9 +32,11 @@ class HomeViewModel @Inject constructor(
 
     init { refresh() }
 
-    fun refresh() {
+    fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            if (!silent) {
+                _state.update { it.copy(loading = true, error = null) }
+            }
             val baseUrl = settingsRepository.settings.first().baseUrl
             runCatching { repository.home() }
                 .onSuccess { home ->
@@ -43,11 +45,17 @@ class HomeViewModel @Inject constructor(
                             loading = false,
                             sections = home.sections.filter { s -> s.items.isNotEmpty() },
                             baseUrl = baseUrl,
+                            error = null,
                         )
                     }
                 }
                 .onFailure { err ->
-                    _state.update { it.copy(loading = false, error = err.toUserMessage("Failed to load home")) }
+                    _state.update {
+                        it.copy(
+                            loading = false,
+                            error = if (silent) it.error else err.toUserMessage("Failed to load home"),
+                        )
+                    }
                 }
         }
     }

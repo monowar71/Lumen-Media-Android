@@ -13,6 +13,7 @@ import com.lumenmedia.android.core.model.MovieDetail
 import com.lumenmedia.android.core.model.PagedResult
 import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
+import com.lumenmedia.android.core.model.ScanLibraryRequest
 import com.lumenmedia.android.core.model.PlaybackPingResponse
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.ProgressResponse
@@ -69,7 +70,10 @@ interface LumenMediaApi {
     suspend fun deleteLibrary(@Path("id") id: String)
 
     @POST("api/v1/libraries/{id}/scan")
-    suspend fun scanLibrary(@Path("id") id: String): JobDto
+    suspend fun scanLibrary(
+        @Path("id") id: String,
+        @Body body: ScanLibraryRequest,
+    ): JobDto
 
     @GET("api/v1/libraries/{id}/items")
     suspend fun libraryItems(

@@ -89,6 +89,10 @@ data class PlayerUiState(
     val probedFormat: ProbedFormat? = null,
     val canMarkUnwatched: Boolean = false,
     val markingUnwatched: Boolean = false,
+    /** Show "Next episode" when near end and a following episode exists. */
+    val showNextEpisode: Boolean = false,
+    val nextEpisodeId: String? = null,
+    val nextEpisodeLabel: String? = null,
 )
 
 @androidx.annotation.OptIn(androidx.media3.common.util.UnstableApi::class)
@@ -137,6 +141,10 @@ class PlayerViewModel @Inject constructor(
     private var offlinePlayback: Boolean = false
     private var mediaSource: MediaSource? = null
     private var userData: UserData? = null
+    private var nextEpisodeId: String? = null
+    private var nextEpisodeLabel: String? = null
+    /** Percent of runtime remaining (from end) at which the next-episode prompt appears. */
+    private var nextEpisodePromptPercentFromEnd: Int = 5
 
     private val playerListener = object : Player.Listener {
         override fun onIsPlayingChanged(isPlaying: Boolean) {
@@ -271,11 +279,29 @@ class PlayerViewModel @Inject constructor(
             }
 
             if (isEpisodeArg) {
+                val promptPct = runCatching { repository.serverInfo() }
+                    .getOrNull()
+                    ?.features
+                    ?.nextEpisodePromptPercentFromEnd
+                    ?.coerceIn(1, 50)
+                    ?: 5
+                nextEpisodePromptPercentFromEnd = promptPct
+
                 runCatching { repository.episode(itemId) }
                     .onSuccess { episode ->
                         val seriesDetail = runCatching { repository.itemDetail(episode.seriesId) }.getOrNull()
                         val series = (seriesDetail as? ItemDetailResult.Series)?.value
                         applyUserData(episode.userData, episode.mediaSources)
+                        val next = episode.nextEpisode
+                        nextEpisodeId = next?.id
+                        nextEpisodeLabel = next?.let { n ->
+                            val epTitle = n.title?.trim().orEmpty()
+                            if (epTitle.isNotEmpty()) {
+                                "S${n.seasonNumber}E${n.episodeNumber} · $epTitle"
+                            } else {
+                                "S${n.seasonNumber}E${n.episodeNumber}"
+                            }
+                        }
                         _state.update {
                             it.copy(
                                 mediaTitle = series?.title ?: episode.title,
@@ -283,6 +309,9 @@ class PlayerViewModel @Inject constructor(
                                 seasonNumber = episode.seasonNumber,
                                 episodeNumber = episode.episodeNumber,
                                 isEpisode = true,
+                                nextEpisodeId = nextEpisodeId,
+                                nextEpisodeLabel = nextEpisodeLabel,
+                                showNextEpisode = false,
                             )
                         }
                     }
@@ -938,6 +967,7 @@ class PlayerViewModel @Inject constructor(
                     val playing = player.isPlaying
                     val buffering = player.playbackState == Player.STATE_BUFFERING
                     val canMark = canMarkUnwatched(userData) || position > 0L
+                    val showNext = shouldShowNextEpisode(position, duration)
                     val current = _state.value
                     // Skip no-op emissions (e.g. while paused) so the screen
                     // does not recompose for identical state.
@@ -946,7 +976,8 @@ class PlayerViewModel @Inject constructor(
                         current.bufferedMs != buffered ||
                         current.playing != playing ||
                         current.buffering != buffering ||
-                        current.canMarkUnwatched != canMark
+                        current.canMarkUnwatched != canMark ||
+                        current.showNextEpisode != showNext
                     if (changed) {
                         _state.update {
                             it.copy(
@@ -956,6 +987,9 @@ class PlayerViewModel @Inject constructor(
                                 playing = playing,
                                 buffering = buffering,
                                 canMarkUnwatched = canMark,
+                                showNextEpisode = showNext,
+                                nextEpisodeId = nextEpisodeId,
+                                nextEpisodeLabel = nextEpisodeLabel,
                             )
                         }
                     }
@@ -1011,6 +1045,31 @@ class PlayerViewModel @Inject constructor(
             peers = stats.peers,
             downloadSpeedBytesPerSec = stats.downloadSpeedBytesPerSec,
         )
+    }
+
+    private fun shouldShowNextEpisode(positionMs: Long, durationMs: Long): Boolean {
+        val nextId = nextEpisodeId ?: return false
+        if (nextId.isBlank() || durationMs <= 0L) return false
+        val remaining = (durationMs - positionMs).coerceAtLeast(0L)
+        val thresholdMs = durationMs * nextEpisodePromptPercentFromEnd / 100L
+        return remaining <= thresholdMs
+    }
+
+    /**
+     * Persist progress as stopped, then invoke [onReady] with the next episode id
+     * so navigation can replace the current player destination.
+     */
+    fun playNextEpisode(onReady: (String) -> Unit) {
+        val nextId = nextEpisodeId ?: return
+        viewModelScope.launch {
+            reportProgress("stopped")
+            val sid = sessionId?.takeUnless { it == OFFLINE_SESSION_ID }
+            if (sid != null) {
+                repository.stopSession(sid)
+                sessionId = null
+            }
+            onReady(nextId)
+        }
     }
 
     private suspend fun reportProgress(stateName: String) {

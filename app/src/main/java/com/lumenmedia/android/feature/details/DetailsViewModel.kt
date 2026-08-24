@@ -77,9 +77,11 @@ class DetailsViewModel @Inject constructor(
 
     init { refresh() }
 
-    fun refresh() {
+    fun refresh(silent: Boolean = false) {
         viewModelScope.launch {
-            _state.update { it.copy(loading = true, error = null) }
+            if (!silent) {
+                _state.update { it.copy(loading = true, error = null) }
+            }
             val baseUrl = settingsRepository.settings.first().baseUrl
             val isAdmin = sessionStore.readSession()?.role.equals("Admin", ignoreCase = true)
             val accessToken = sessionStore.accessToken
@@ -100,15 +102,25 @@ class DetailsViewModel @Inject constructor(
                         }
                         is ItemDetailResult.Series -> {
                             val seasons = repository.seasons(itemId)
-                            val first = seasons.firstOrNull()
-                            val episodes = if (first != null) repository.episodes(first.id) else emptyList()
+                            val preferredSeasonId = preferredSeasonId(detail.value, seasons)
+                            val keepSeasonId = _state.value.selectedSeasonId
+                                ?.takeIf { id -> seasons.any { it.id == id } }
+                            val seasonId = when {
+                                silent && keepSeasonId != null -> keepSeasonId
+                                else -> preferredSeasonId
+                            }
+                            val episodes = if (seasonId != null) {
+                                repository.episodes(seasonId)
+                            } else {
+                                emptyList()
+                            }
                             _state.update {
                                 it.copy(
                                     loading = false,
                                     series = detail.value,
                                     movie = null,
                                     seasons = seasons,
-                                    selectedSeasonId = first?.id,
+                                    selectedSeasonId = seasonId,
                                     episodes = episodes,
                                     baseUrl = baseUrl,
                                     accessToken = accessToken,
@@ -122,12 +134,23 @@ class DetailsViewModel @Inject constructor(
                     _state.update {
                         it.copy(
                             loading = false,
-                            error = err.toUserMessage("Failed to load details"),
+                            error = if (silent) it.error else err.toUserMessage("Failed to load details"),
                             isAdmin = isAdmin,
                         )
                     }
                 }
         }
+    }
+
+    private fun preferredSeasonId(
+        series: SeriesDetail,
+        seasons: List<Season>,
+    ): String? {
+        val nextSeasonId = series.userData.nextUp?.seasonId
+        if (!nextSeasonId.isNullOrBlank() && seasons.any { it.id == nextSeasonId }) {
+            return nextSeasonId
+        }
+        return seasons.firstOrNull()?.id
     }
 
     fun selectSeason(seasonId: String) {

@@ -37,6 +37,8 @@ data class SettingsUiState(
     val newLibraryName: String = "",
     val newLibraryType: String = "Movies",
     val newLibraryPath: String = "",
+    /** Library id → probe codecs during next scan (Torrent only). */
+    val probeMediaByLibraryId: Map<String, Boolean> = emptyMap(),
     val cacheSummary: OfflineCacheSummary = OfflineCacheSummary(),
     val message: String? = null,
     val error: String? = null,
@@ -190,9 +192,16 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setProbeMedia(libraryId: String, enabled: Boolean) {
+        _state.update {
+            it.copy(probeMediaByLibraryId = it.probeMediaByLibraryId + (libraryId to enabled))
+        }
+    }
+
     fun scanLibrary(id: String) {
         viewModelScope.launch {
-            runCatching { repository.scanLibrary(id) }
+            val probe = _state.value.probeMediaByLibraryId[id] == true
+            runCatching { repository.scanLibrary(id, probeMedia = probe) }
                 .onSuccess { _state.update { it.copy(message = "Scan started") } }
                 .onFailure { err -> _state.update { it.copy(error = err.toUserMessage()) } }
         }

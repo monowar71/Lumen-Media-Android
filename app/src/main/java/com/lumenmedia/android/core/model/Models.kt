@@ -23,10 +23,19 @@ data class PagedResult<T>(
 )
 
 @Serializable
+data class ServerFeatures(
+    val hardwareAccel: String? = null,
+    val abr: Boolean? = null,
+    /** Percent of runtime remaining (from end) to show "Next episode" in the player. */
+    val nextEpisodePromptPercentFromEnd: Int = 5,
+)
+
+@Serializable
 data class ServerInfo(
     val setupCompleted: Boolean = false,
     val serverName: String? = null,
     val version: String? = null,
+    val features: ServerFeatures? = null,
 )
 
 @Serializable
@@ -127,6 +136,11 @@ data class CreateLibraryRequest(
     val name: String,
     val type: String,
     val paths: List<String>,
+)
+
+@Serializable
+data class ScanLibraryRequest(
+    val probeMedia: Boolean = false,
 )
 
 @Serializable
@@ -281,6 +295,8 @@ data class EpisodeDetail(
     val artwork: ArtworkSet = ArtworkSet(),
     val userData: UserData = UserData(),
     val mediaSources: List<MediaSource> = emptyList(),
+    /** Chronological next episode when one exists. */
+    val nextEpisode: EpisodeSummary? = null,
 )
 
 @Serializable

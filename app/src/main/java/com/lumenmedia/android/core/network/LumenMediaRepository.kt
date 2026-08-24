@@ -15,6 +15,7 @@ import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.ProgressResponse
+import com.lumenmedia.android.core.model.ScanLibraryRequest
 import com.lumenmedia.android.core.model.SearchResponse
 import com.lumenmedia.android.core.model.Season
 import com.lumenmedia.android.core.model.ServerInfo
@@ -49,7 +50,8 @@ class LumenMediaRepository @Inject constructor(
     suspend fun libraries(): List<LibraryDto> = api.libraries()
     suspend fun createLibrary(body: CreateLibraryRequest) = api.createLibrary(body)
     suspend fun deleteLibrary(id: String) = api.deleteLibrary(id)
-    suspend fun scanLibrary(id: String): JobDto = api.scanLibrary(id)
+    suspend fun scanLibrary(id: String, probeMedia: Boolean = false): JobDto =
+        api.scanLibrary(id, ScanLibraryRequest(probeMedia = probeMedia))
     suspend fun libraryItems(
         id: String,
         page: Int,

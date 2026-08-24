@@ -185,7 +185,15 @@ fun LumenMediaNavHost(
                 navArgument("isEpisode") { type = NavType.BoolType; defaultValue = false },
             ),
         ) {
-            PlayerScreen(onBack = { navController.popBackStack() })
+            PlayerScreen(
+                onBack = { navController.popBackStack() },
+                onPlayNext = { nextId ->
+                    navController.navigate(Routes.player(nextId, 0L, true)) {
+                        launchSingleTop = true
+                        popUpTo(Routes.Player) { inclusive = true }
+                    }
+                },
+            )
         }
     }
 }

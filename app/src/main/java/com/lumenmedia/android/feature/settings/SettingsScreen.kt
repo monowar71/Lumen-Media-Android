@@ -9,6 +9,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -17,6 +18,7 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -366,7 +368,32 @@ fun SettingsScreen(
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             style = MaterialTheme.typography.bodySmall,
                         )
-                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                        ) {
+                            if (lib.type.equals("Torrent", ignoreCase = true)) {
+                                val probeChecked = state.probeMediaByLibraryId[lib.id] == true
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    modifier = Modifier.tvFocusable(
+                                        onClick = {
+                                            viewModel.setProbeMedia(lib.id, !probeChecked)
+                                        },
+                                        scaleFocused = 1.05f,
+                                    ),
+                                ) {
+                                    Checkbox(
+                                        checked = probeChecked,
+                                        onCheckedChange = { viewModel.setProbeMedia(lib.id, it) },
+                                    )
+                                    Text(
+                                        text = stringResource(R.string.settings_probe_media),
+                                        style = MaterialTheme.typography.bodySmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                            }
                             TextButton(
                                 onClick = { viewModel.scanLibrary(lib.id) },
                                 modifier = Modifier.tvFocusable(

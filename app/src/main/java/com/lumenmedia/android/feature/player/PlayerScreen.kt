@@ -107,6 +107,7 @@ private data class TrackMenuItem(
 @Composable
 fun PlayerScreen(
     onBack: () -> Unit,
+    onPlayNext: (itemId: String) -> Unit = {},
     viewModel: PlayerViewModel = hiltViewModel(),
 ) {
     val state by viewModel.state.collectAsStateWithLifecycle()
@@ -291,11 +292,15 @@ fun PlayerScreen(
         if (!controlsVisible) openMenu = null
     }
 
-    LaunchedEffect(controlsVisible, state.playing, scrubbing, seekFocused, openMenu) {
-        if (controlsVisible && state.playing && !scrubbing && !seekFocused && openMenu == null) {
+    LaunchedEffect(controlsVisible, state.playing, scrubbing, seekFocused, openMenu, state.showNextEpisode) {
+        if (controlsVisible && state.playing && !scrubbing && !seekFocused && openMenu == null && !state.showNextEpisode) {
             delay(4_000)
             controlsVisible = false
         }
+    }
+
+    LaunchedEffect(state.showNextEpisode) {
+        if (state.showNextEpisode) controlsVisible = true
     }
 
     // Move focus into the dropdown when it opens; back to the button when it
@@ -800,6 +805,49 @@ fun PlayerScreen(
                             )
                         }
                     }
+                }
+            }
+        }
+
+        if (state.showNextEpisode && state.nextEpisodeId != null && state.error == null) {
+            val nextLabel = stringResource(R.string.player_next_episode)
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomEnd)
+                    .padding(
+                        end = if (tv) 40.dp else 16.dp,
+                        bottom = if (tv) 120.dp else 96.dp,
+                    )
+                    .widthIn(max = if (tv) 360.dp else 280.dp)
+                    .clip(RoundedCornerShape(12.dp))
+                    .background(FpColors.Accent)
+                    .then(
+                        if (tv) {
+                            Modifier.tvFocusable(
+                                onClick = { viewModel.playNextEpisode(onPlayNext) },
+                                scaleFocused = 1.06f,
+                            )
+                        } else {
+                            Modifier.clickable { viewModel.playNextEpisode(onPlayNext) }
+                        },
+                    )
+                    .padding(horizontal = 16.dp, vertical = 12.dp),
+            ) {
+                Text(
+                    text = nextLabel,
+                    color = FpColors.OnAccent,
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold,
+                )
+                state.nextEpisodeLabel?.let { subtitle ->
+                    Text(
+                        text = subtitle,
+                        color = FpColors.OnAccent.copy(alpha = 0.85f),
+                        style = MaterialTheme.typography.bodySmall,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(top = 2.dp),
+                    )
                 }
             }
         }
