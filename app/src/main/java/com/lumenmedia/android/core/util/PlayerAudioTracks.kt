@@ -27,10 +27,7 @@ object PlayerAudioTracks {
         if (tracks.isEmpty()) return null
 
         val byId = tracks.firstOrNull { ref ->
-            !ref.id.isNullOrBlank() && (
-                ref.id.equals(option.id, ignoreCase = true) ||
-                    option.streamIndex?.toString() == ref.id
-                )
+            !ref.id.isNullOrBlank() && ref.id.equals(option.id, ignoreCase = true)
         }
         if (byId != null) return byId
 
@@ -50,8 +47,14 @@ object PlayerAudioTracks {
             ref to score
         }
         val best = scored.maxByOrNull { it.second }
-        if (best != null && best.second >= 8) return best.first
-        if (best != null && best.second >= 6) return best.first
+        // A high score is only safe when it uniquely identifies the dub.
+        // Several Russian AC3 5.1 tracks otherwise all score the same and
+        // maxBy would keep the default (first) track — the TV then only
+        // switches after the server transcodes a single audio stream.
+        if (best != null && best.second >= 6) {
+            val tied = scored.count { it.second == best.second }
+            if (tied == 1) return best.first
+        }
 
         val optionIndex = allOptions.indexOfFirst { it.id == option.id }
         if (optionIndex in tracks.indices) {
@@ -69,7 +72,7 @@ object PlayerAudioTracks {
             }
             return tracks[optionIndex]
         }
-        return best?.takeIf { it.second > 0 }?.first
+        return best?.takeIf { it.second > 0 && scored.count { it.second == best.second } == 1 }?.first
     }
 
     internal fun normalizeLang(raw: String?): String? {

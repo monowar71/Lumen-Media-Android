@@ -259,7 +259,7 @@ data class Season(
     val id: String,
     val seriesId: String,
     val seasonNumber: Int,
-    val name: String,
+    val name: String? = null,
     val episodeCount: Int = 0,
     val artwork: ArtworkSet = ArtworkSet(),
 )
@@ -359,7 +359,7 @@ data class AudioStreamOption(
     val codec: String? = null,
     val channels: Int? = null,
     val isDefault: Boolean? = null,
-    /** ffprobe container stream index; used to match ExoPlayer DirectPlay tracks. */
+    /** ffprobe container stream index (informational; DirectPlay matching uses order/title). */
     val streamIndex: Int? = null,
 )
 

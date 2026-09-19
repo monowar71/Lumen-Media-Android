@@ -309,7 +309,7 @@ fun DetailsScreen(
             item(key = "seasons") {
                 Spacer(modifier = Modifier.height(FpDimens.space12))
                 SeasonPicker(
-                    seasons = state.seasons.map { it.id to it.name },
+                    seasons = state.seasons.map { it.id to (it.name ?: "") },
                     selectedId = state.selectedSeasonId,
                     onSelect = viewModel::selectSeason,
                     tv = tv,

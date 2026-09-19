@@ -479,7 +479,7 @@ fun PlayerScreen(
         }
 
         AnimatedVisibility(
-            visible = controlsVisible && state.error == null,
+            visible = (controlsVisible || state.showNextEpisode) && state.error == null,
             enter = fadeIn(),
             exit = fadeOut(),
             modifier = Modifier.fillMaxSize(),

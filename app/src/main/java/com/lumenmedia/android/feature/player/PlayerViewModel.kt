@@ -10,10 +10,14 @@ import androidx.media3.common.MediaItem
 import androidx.media3.common.MimeTypes
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.TrackSelectionParameters.AudioOffloadPreferences
 import androidx.media3.exoplayer.upstream.DefaultBandwidthMeter
 import androidx.media3.datasource.DefaultHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import com.lumenmedia.android.core.model.EpisodeDetail
+import com.lumenmedia.android.core.model.EpisodeSummary
 import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.PlaybackDecisionRequest
 import com.lumenmedia.android.core.model.PlaybackDecisionResponse
@@ -125,8 +129,23 @@ class PlayerViewModel @Inject constructor(
 
     private val bandwidthMeter = DefaultBandwidthMeter.Builder(context).build()
 
+    private val trackSelector = DefaultTrackSelector(context).apply {
+        setParameters(
+            buildUponParameters()
+                .setTunnelingEnabled(false)
+                .setConstrainAudioChannelCountToDeviceCapabilities(false)
+                .setAudioOffloadPreferences(
+                    AudioOffloadPreferences.Builder()
+                        .setAudioOffloadMode(AudioOffloadPreferences.AUDIO_OFFLOAD_MODE_DISABLED)
+                        .build(),
+                )
+                .build(),
+        )
+    }
+
     val player: ExoPlayer = ExoPlayer.Builder(context)
         .setBandwidthMeter(bandwidthMeter)
+        .setTrackSelector(trackSelector)
         .build()
         .also {
             it.playWhenReady = true
@@ -156,9 +175,15 @@ class PlayerViewModel @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
-            val ended = playbackState == Player.STATE_ENDED
             val duration = effectiveDuration()
-            val position = if (ended && duration > 0L) duration else absolutePosition()
+            val rawPosition = absolutePosition()
+            val ended = NextEpisodePrompt.isPlaybackFinished(
+                playing = player.isPlaying,
+                playbackEnded = playbackState == Player.STATE_ENDED,
+                positionMs = rawPosition,
+                durationMs = duration,
+            )
+            val position = if (ended && duration > 0L) duration else rawPosition
             _state.update {
                 it.copy(
                     buffering = playbackState == Player.STATE_BUFFERING,
@@ -311,16 +336,8 @@ class PlayerViewModel @Inject constructor(
                 val seriesDetail = runCatching { repository.itemDetail(episode.seriesId) }.getOrNull()
                 val series = (seriesDetail as? ItemDetailResult.Series)?.value
                 applyUserData(episode.userData, episode.mediaSources)
-                val next = episode.nextEpisode
-                nextEpisodeId = next?.id
-                nextEpisodeLabel = next?.let { n ->
-                    val epTitle = n.title?.trim().orEmpty()
-                    if (epTitle.isNotEmpty()) {
-                        "S${n.seasonNumber}E${n.episodeNumber} · $epTitle"
-                    } else {
-                        "S${n.seasonNumber}E${n.episodeNumber}"
-                    }
-                }
+                val next = episode.nextEpisode ?: resolveNextEpisodeFallback(episode)
+                applyNextEpisode(next)
                 _state.update {
                     it.copy(
                         mediaTitle = series?.title ?: episode.title,
@@ -330,7 +347,7 @@ class PlayerViewModel @Inject constructor(
                         isEpisode = true,
                         nextEpisodeId = nextEpisodeId,
                         nextEpisodeLabel = nextEpisodeLabel,
-                        showNextEpisode = false,
+                        showNextEpisode = currentShowNextEpisode(),
                     )
                 }
                 return@launch
@@ -595,6 +612,7 @@ class PlayerViewModel @Inject constructor(
     private fun applyAudioTrackSelection(
         audioId: String?,
         tracks: androidx.media3.common.Tracks = player.currentTracks,
+        forceRendererReset: Boolean = false,
     ): Boolean {
         if (audioId.isNullOrBlank()) return false
         val decision = _state.value.decision ?: return false
@@ -603,14 +621,19 @@ class PlayerViewModel @Inject constructor(
         val refs = collectAudioTrackRefs(tracks)
         val match = PlayerAudioTracks.match(refs, option, decision.audioStreams) ?: return false
         val group = tracks.groups.getOrNull(match.groupIndex) ?: return false
-        if (group.isTrackSelected(match.trackIndexInGroup)) return true
-        player.trackSelectionParameters = player.trackSelectionParameters
-            .buildUpon()
-            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
-            .setOverrideForType(
-                TrackSelectionOverride(group.mediaTrackGroup, listOf(match.trackIndexInGroup)),
-            )
-            .build()
+        val alreadySelected = group.isTrackSelected(match.trackIndexInGroup)
+        if (!alreadySelected) {
+            player.trackSelectionParameters = player.trackSelectionParameters
+                .buildUpon()
+                .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+                .setOverrideForType(
+                    TrackSelectionOverride(group.mediaTrackGroup, listOf(match.trackIndexInGroup)),
+                )
+                .build()
+            if (forceRendererReset && player.playbackState != Player.STATE_IDLE) {
+                player.seekTo(player.currentPosition)
+            }
+        }
         return true
     }
 
@@ -888,7 +911,7 @@ class PlayerViewModel @Inject constructor(
         // a new decision would remount the same file and keep the default dub
         // until the server is forced into transcode.
         if (decision.method == "DirectPlay") {
-            val applied = applyAudioTrackSelection(audioId)
+            val applied = applyAudioTrackSelection(audioId, forceRendererReset = true)
             if (applied || !hasAudioTracks()) {
                 _state.update { it.copy(buffering = false) }
                 return
@@ -1051,11 +1074,16 @@ class PlayerViewModel @Inject constructor(
                     val buffered = bufferedAbs.coerceAtMost(if (duration > 0) duration else bufferedAbs)
                     val playing = player.isPlaying
                     val buffering = player.playbackState == Player.STATE_BUFFERING
-                    val ended = player.playbackState == Player.STATE_ENDED
+                    val ended = NextEpisodePrompt.isPlaybackFinished(
+                        playing = playing,
+                        playbackEnded = player.playbackState == Player.STATE_ENDED,
+                        positionMs = position,
+                        durationMs = duration,
+                    )
                     val canMark = canMarkUnwatched(userData) || position > 0L
                     val showNext = NextEpisodePrompt.shouldShow(
                         nextEpisodeId = nextEpisodeId,
-                        positionMs = position,
+                        positionMs = if (ended && duration > 0L) duration else position,
                         durationMs = duration,
                         percentFromEnd = nextEpisodePromptPercentFromEnd,
                         playbackEnded = ended,
@@ -1136,6 +1164,54 @@ class PlayerViewModel @Inject constructor(
             seeders = stats.seeders,
             peers = stats.peers,
             downloadSpeedBytesPerSec = stats.downloadSpeedBytesPerSec,
+        )
+    }
+
+    private fun applyNextEpisode(next: EpisodeSummary?) {
+        nextEpisodeId = next?.id
+        nextEpisodeLabel = next?.let { n ->
+            val epTitle = n.title?.trim().orEmpty()
+            if (epTitle.isNotEmpty()) {
+                "S${n.seasonNumber}E${n.episodeNumber} · $epTitle"
+            } else {
+                "S${n.seasonNumber}E${n.episodeNumber}"
+            }
+        }
+    }
+
+    private fun currentShowNextEpisode(): Boolean {
+        val duration = effectiveDuration()
+        val position = absolutePosition()
+        val ended = NextEpisodePrompt.isPlaybackFinished(
+            playing = player.isPlaying,
+            playbackEnded = player.playbackState == Player.STATE_ENDED,
+            positionMs = position,
+            durationMs = duration,
+        )
+        return NextEpisodePrompt.shouldShow(
+            nextEpisodeId = nextEpisodeId,
+            positionMs = if (ended && duration > 0L) duration else position,
+            durationMs = duration,
+            percentFromEnd = nextEpisodePromptPercentFromEnd,
+            playbackEnded = ended,
+        )
+    }
+
+    private suspend fun resolveNextEpisodeFallback(episode: EpisodeDetail): EpisodeSummary? {
+        val seasons = runCatching { repository.seasons(episode.seriesId) }.getOrNull().orEmpty()
+        val all = mutableListOf<EpisodeSummary>()
+        if (seasons.isEmpty()) {
+            all += runCatching { repository.episodes(episode.seasonId) }.getOrNull().orEmpty()
+        } else {
+            for (season in seasons) {
+                all += runCatching { repository.episodes(season.id) }.getOrNull().orEmpty()
+            }
+        }
+        return NextEpisodePrompt.nextAfter(
+            currentId = episode.id,
+            currentSeasonNumber = episode.seasonNumber,
+            currentEpisodeNumber = episode.episodeNumber,
+            all = all,
         )
     }
 
