@@ -359,6 +359,8 @@ data class AudioStreamOption(
     val codec: String? = null,
     val channels: Int? = null,
     val isDefault: Boolean? = null,
+    /** ffprobe container stream index; used to match ExoPlayer DirectPlay tracks. */
+    val streamIndex: Int? = null,
 )
 
 @Serializable

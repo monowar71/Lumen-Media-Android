@@ -28,11 +28,15 @@ import com.lumenmedia.android.core.network.toUserMessage
 import com.lumenmedia.android.core.offline.OfflineDownloadManager
 import com.lumenmedia.android.core.preferences.SessionStore
 import com.lumenmedia.android.core.preferences.SettingsRepository
+import com.lumenmedia.android.core.util.AudioTrackRef
 import com.lumenmedia.android.core.util.DeviceProfileFactory
 import com.lumenmedia.android.core.util.MediaFormatLabels
 import com.lumenmedia.android.core.util.NetworkKindDetector
+import com.lumenmedia.android.core.util.NextEpisodePrompt
 import com.lumenmedia.android.core.util.PlaybackSource
+import com.lumenmedia.android.core.util.PlayerAudioTracks
 import com.lumenmedia.android.core.util.absoluteUrl
+import com.lumenmedia.android.core.util.navBoolean
 import com.lumenmedia.android.core.util.resolvePlaybackSource
 import com.lumenmedia.android.di.ApplicationScope
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -110,7 +114,7 @@ class PlayerViewModel @Inject constructor(
     private val initialResumeMs: Long = savedStateHandle.get<String>("resumeMs")?.toLongOrNull()
         ?: savedStateHandle.get<Long>("resumeMs")
         ?: 0L
-    private val isEpisodeArg: Boolean = savedStateHandle.get<Boolean>("isEpisode") ?: false
+    private val isEpisodeArg: Boolean = savedStateHandle.navBoolean("isEpisode")
 
     private val _state = MutableStateFlow(PlayerUiState(isEpisode = isEpisodeArg))
     val state: StateFlow<PlayerUiState> = _state.asStateFlow()
@@ -152,15 +156,29 @@ class PlayerViewModel @Inject constructor(
         }
 
         override fun onPlaybackStateChanged(playbackState: Int) {
+            val ended = playbackState == Player.STATE_ENDED
+            val duration = effectiveDuration()
+            val position = if (ended && duration > 0L) duration else absolutePosition()
             _state.update {
                 it.copy(
                     buffering = playbackState == Player.STATE_BUFFERING,
                     playing = player.isPlaying,
+                    positionMs = if (ended) position else it.positionMs,
+                    showNextEpisode = NextEpisodePrompt.shouldShow(
+                        nextEpisodeId = nextEpisodeId,
+                        positionMs = position,
+                        durationMs = duration,
+                        percentFromEnd = nextEpisodePromptPercentFromEnd,
+                        playbackEnded = ended,
+                    ),
+                    nextEpisodeId = nextEpisodeId,
+                    nextEpisodeLabel = nextEpisodeLabel,
                 )
             }
         }
 
         override fun onTracksChanged(tracks: androidx.media3.common.Tracks) {
+            applyAudioTrackSelection(_state.value.selectedAudioId, tracks)
             val id = _state.value.selectedSubtitleId ?: return
             val textAlreadySelected = tracks.groups.any { group ->
                 group.type == C.TRACK_TYPE_TEXT && group.isSelected
@@ -278,43 +296,43 @@ class PlayerViewModel @Inject constructor(
                 return@launch
             }
 
-            if (isEpisodeArg) {
-                val promptPct = runCatching { repository.serverInfo() }
-                    .getOrNull()
-                    ?.features
-                    ?.nextEpisodePromptPercentFromEnd
-                    ?.coerceIn(1, 50)
-                    ?: 5
-                nextEpisodePromptPercentFromEnd = promptPct
+            val promptPct = runCatching { repository.serverInfo() }
+                .getOrNull()
+                ?.features
+                ?.nextEpisodePromptPercentFromEnd
+                ?.coerceIn(1, 50)
+                ?: 5
+            nextEpisodePromptPercentFromEnd = promptPct
 
-                runCatching { repository.episode(itemId) }
-                    .onSuccess { episode ->
-                        val seriesDetail = runCatching { repository.itemDetail(episode.seriesId) }.getOrNull()
-                        val series = (seriesDetail as? ItemDetailResult.Series)?.value
-                        applyUserData(episode.userData, episode.mediaSources)
-                        val next = episode.nextEpisode
-                        nextEpisodeId = next?.id
-                        nextEpisodeLabel = next?.let { n ->
-                            val epTitle = n.title?.trim().orEmpty()
-                            if (epTitle.isNotEmpty()) {
-                                "S${n.seasonNumber}E${n.episodeNumber} · $epTitle"
-                            } else {
-                                "S${n.seasonNumber}E${n.episodeNumber}"
-                            }
-                        }
-                        _state.update {
-                            it.copy(
-                                mediaTitle = series?.title ?: episode.title,
-                                mediaYear = series?.year,
-                                seasonNumber = episode.seasonNumber,
-                                episodeNumber = episode.episodeNumber,
-                                isEpisode = true,
-                                nextEpisodeId = nextEpisodeId,
-                                nextEpisodeLabel = nextEpisodeLabel,
-                                showNextEpisode = false,
-                            )
-                        }
+            // Do not rely only on the nav flag: SavedStateHandle may drop isEpisode,
+            // and GET /items/{id} 404s for episodes. Always try the episode endpoint.
+            val episode = runCatching { repository.episode(itemId) }.getOrNull()
+            if (episode != null) {
+                val seriesDetail = runCatching { repository.itemDetail(episode.seriesId) }.getOrNull()
+                val series = (seriesDetail as? ItemDetailResult.Series)?.value
+                applyUserData(episode.userData, episode.mediaSources)
+                val next = episode.nextEpisode
+                nextEpisodeId = next?.id
+                nextEpisodeLabel = next?.let { n ->
+                    val epTitle = n.title?.trim().orEmpty()
+                    if (epTitle.isNotEmpty()) {
+                        "S${n.seasonNumber}E${n.episodeNumber} · $epTitle"
+                    } else {
+                        "S${n.seasonNumber}E${n.episodeNumber}"
                     }
+                }
+                _state.update {
+                    it.copy(
+                        mediaTitle = series?.title ?: episode.title,
+                        mediaYear = series?.year,
+                        seasonNumber = episode.seasonNumber,
+                        episodeNumber = episode.episodeNumber,
+                        isEpisode = true,
+                        nextEpisodeId = nextEpisodeId,
+                        nextEpisodeLabel = nextEpisodeLabel,
+                        showNextEpisode = false,
+                    )
+                }
                 return@launch
             }
 
@@ -386,6 +404,7 @@ class PlayerViewModel @Inject constructor(
                 cacheToken += 1
                 val audioId = _state.value.selectedAudioId ?: pickDefaultAudio(decision)
                 val subtitleId = _state.value.selectedSubtitleId
+                _state.update { it.copy(selectedAudioId = audioId, decision = decision) }
                 val source = resolvePlaybackSource(decision, settings.baseUrl, cacheToken.toString())
                 attachSource(
                     source = source,
@@ -526,6 +545,7 @@ class PlayerViewModel @Inject constructor(
         val mediaSource = DefaultMediaSourceFactory(factory).createMediaSource(mediaItemBuilder.build())
         player.setMediaSource(mediaSource)
         player.prepare()
+        applyAudioTrackSelection(_state.value.selectedAudioId)
         applyTextTrackSelection(selectedSubtitleId)
         if (source is PlaybackSource.Direct) {
             timelineOffsetMs = 0L
@@ -545,6 +565,53 @@ class PlayerViewModel @Inject constructor(
             )
         }
         refreshFormatBadges()
+    }
+
+    private fun hasAudioTracks(): Boolean =
+        player.currentTracks.groups.any { it.type == C.TRACK_TYPE_AUDIO }
+
+    private fun collectAudioTrackRefs(tracks: androidx.media3.common.Tracks = player.currentTracks): List<AudioTrackRef> {
+        val refs = mutableListOf<AudioTrackRef>()
+        for (groupIndex in 0 until tracks.groups.size) {
+            val group = tracks.groups[groupIndex]
+            if (group.type != C.TRACK_TYPE_AUDIO) continue
+            for (trackIndex in 0 until group.length) {
+                val format = group.getTrackFormat(trackIndex)
+                refs += AudioTrackRef(
+                    groupIndex = groupIndex,
+                    trackIndexInGroup = trackIndex,
+                    id = format.id,
+                    language = format.language,
+                    label = format.label,
+                    channelCount = format.channelCount,
+                    codecs = format.codecs ?: format.sampleMimeType,
+                )
+            }
+        }
+        return refs
+    }
+
+    /** DirectPlay: switch dubs in ExoPlayer. Returns false if the track was not found. */
+    private fun applyAudioTrackSelection(
+        audioId: String?,
+        tracks: androidx.media3.common.Tracks = player.currentTracks,
+    ): Boolean {
+        if (audioId.isNullOrBlank()) return false
+        val decision = _state.value.decision ?: return false
+        if (decision.method != "DirectPlay" && !offlinePlayback) return false
+        val option = decision.audioStreams.firstOrNull { it.id == audioId } ?: return false
+        val refs = collectAudioTrackRefs(tracks)
+        val match = PlayerAudioTracks.match(refs, option, decision.audioStreams) ?: return false
+        val group = tracks.groups.getOrNull(match.groupIndex) ?: return false
+        if (group.isTrackSelected(match.trackIndexInGroup)) return true
+        player.trackSelectionParameters = player.trackSelectionParameters
+            .buildUpon()
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            .setOverrideForType(
+                TrackSelectionOverride(group.mediaTrackGroup, listOf(match.trackIndexInGroup)),
+            )
+            .build()
+        return true
     }
 
     private fun applyTextTrackSelection(subtitleId: String?) {
@@ -804,13 +871,31 @@ class PlayerViewModel @Inject constructor(
     }
 
     fun changeAudio(audioId: String) {
-        if (offlinePlayback) return
+        if (offlinePlayback) {
+            if (audioId == _state.value.selectedAudioId) return
+            _state.update { it.copy(selectedAudioId = audioId) }
+            applyAudioTrackSelection(audioId)
+            refreshFormatBadges()
+            return
+        }
         val decision = _state.value.decision ?: return
         if (audioId == _state.value.selectedAudioId) return
         val position = absolutePosition()
-        val previous = sessionId
         _state.update { it.copy(selectedAudioId = audioId, buffering = true) }
         refreshFormatBadges()
+
+        // DirectPlay already contains every audio track. Switch in ExoPlayer —
+        // a new decision would remount the same file and keep the default dub
+        // until the server is forced into transcode.
+        if (decision.method == "DirectPlay") {
+            val applied = applyAudioTrackSelection(audioId)
+            if (applied || !hasAudioTracks()) {
+                _state.update { it.copy(buffering = false) }
+                return
+            }
+        }
+
+        val previous = sessionId
         viewModelScope.launch {
             if (previous != null && previous != OFFLINE_SESSION_ID) {
                 repository.stopSession(previous)
@@ -966,8 +1051,15 @@ class PlayerViewModel @Inject constructor(
                     val buffered = bufferedAbs.coerceAtMost(if (duration > 0) duration else bufferedAbs)
                     val playing = player.isPlaying
                     val buffering = player.playbackState == Player.STATE_BUFFERING
+                    val ended = player.playbackState == Player.STATE_ENDED
                     val canMark = canMarkUnwatched(userData) || position > 0L
-                    val showNext = shouldShowNextEpisode(position, duration)
+                    val showNext = NextEpisodePrompt.shouldShow(
+                        nextEpisodeId = nextEpisodeId,
+                        positionMs = position,
+                        durationMs = duration,
+                        percentFromEnd = nextEpisodePromptPercentFromEnd,
+                        playbackEnded = ended,
+                    )
                     val current = _state.value
                     // Skip no-op emissions (e.g. while paused) so the screen
                     // does not recompose for identical state.
@@ -1045,14 +1137,6 @@ class PlayerViewModel @Inject constructor(
             peers = stats.peers,
             downloadSpeedBytesPerSec = stats.downloadSpeedBytesPerSec,
         )
-    }
-
-    private fun shouldShowNextEpisode(positionMs: Long, durationMs: Long): Boolean {
-        val nextId = nextEpisodeId ?: return false
-        if (nextId.isBlank() || durationMs <= 0L) return false
-        val remaining = (durationMs - positionMs).coerceAtLeast(0L)
-        val thresholdMs = durationMs * nextEpisodePromptPercentFromEnd / 100L
-        return remaining <= thresholdMs
     }
 
     /**

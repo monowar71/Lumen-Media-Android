@@ -128,6 +128,7 @@ fun PlayerScreen(
     val audioLayoutButtonFocus = remember { FocusRequester() }
     val hdrButtonFocus = remember { FocusRequester() }
     val menuSelectedFocus = remember { FocusRequester() }
+    val nextEpisodeFocus = remember { FocusRequester() }
 
     val displayMs = if (scrubbing) scrubMs.toLong() else state.positionMs
     val duration = state.durationMs.coerceAtLeast(1L)
@@ -331,11 +332,15 @@ fun PlayerScreen(
         }
     }
 
-    // Initial focus on play when chrome appears; do not steal seek focus later.
-    LaunchedEffect(controlsVisible, tv) {
+    // Initial focus on play when chrome appears; next-episode CTA takes over near the end.
+    LaunchedEffect(controlsVisible, tv, state.showNextEpisode) {
         if (tv && controlsVisible) {
             delay(100)
-            runCatching { playFocus.requestFocus() }
+            if (state.showNextEpisode && state.nextEpisodeId != null) {
+                runCatching { nextEpisodeFocus.requestFocus() }
+            } else {
+                runCatching { playFocus.requestFocus() }
+            }
         } else if (tv && !controlsVisible) {
             delay(40)
             runCatching { rootFocus.requestFocus() }
@@ -688,6 +693,47 @@ fun PlayerScreen(
                         null -> Unit
                     }
 
+                    if (state.showNextEpisode && state.nextEpisodeId != null && state.error == null) {
+                        val nextLabel = stringResource(R.string.player_next_episode)
+                        Column(
+                            modifier = Modifier
+                                .align(Alignment.End)
+                                .padding(bottom = 12.dp)
+                                .widthIn(max = if (tv) 360.dp else 280.dp)
+                                .clip(RoundedCornerShape(12.dp))
+                                .background(FpColors.Accent)
+                                .focusRequester(nextEpisodeFocus)
+                                .then(
+                                    if (tv) {
+                                        Modifier.tvFocusable(
+                                            onClick = { viewModel.playNextEpisode(onPlayNext) },
+                                            scaleFocused = 1.06f,
+                                        )
+                                    } else {
+                                        Modifier.clickable { viewModel.playNextEpisode(onPlayNext) }
+                                    },
+                                )
+                                .padding(horizontal = 16.dp, vertical = 12.dp),
+                        ) {
+                            Text(
+                                text = nextLabel,
+                                color = FpColors.OnAccent,
+                                style = MaterialTheme.typography.titleSmall,
+                                fontWeight = FontWeight.SemiBold,
+                            )
+                            state.nextEpisodeLabel?.let { subtitle ->
+                                Text(
+                                    text = subtitle,
+                                    color = FpColors.OnAccent.copy(alpha = 0.85f),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis,
+                                    modifier = Modifier.padding(top = 2.dp),
+                                )
+                            }
+                        }
+                    }
+
                     if (scrubbing || seekFocused) {
                         Box(Modifier.fillMaxWidth().height(20.dp)) {
                             Text(
@@ -809,48 +855,6 @@ fun PlayerScreen(
             }
         }
 
-        if (state.showNextEpisode && state.nextEpisodeId != null && state.error == null) {
-            val nextLabel = stringResource(R.string.player_next_episode)
-            Column(
-                modifier = Modifier
-                    .align(Alignment.BottomEnd)
-                    .padding(
-                        end = if (tv) 40.dp else 16.dp,
-                        bottom = if (tv) 120.dp else 96.dp,
-                    )
-                    .widthIn(max = if (tv) 360.dp else 280.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .background(FpColors.Accent)
-                    .then(
-                        if (tv) {
-                            Modifier.tvFocusable(
-                                onClick = { viewModel.playNextEpisode(onPlayNext) },
-                                scaleFocused = 1.06f,
-                            )
-                        } else {
-                            Modifier.clickable { viewModel.playNextEpisode(onPlayNext) }
-                        },
-                    )
-                    .padding(horizontal = 16.dp, vertical = 12.dp),
-            ) {
-                Text(
-                    text = nextLabel,
-                    color = FpColors.OnAccent,
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                )
-                state.nextEpisodeLabel?.let { subtitle ->
-                    Text(
-                        text = subtitle,
-                        color = FpColors.OnAccent.copy(alpha = 0.85f),
-                        style = MaterialTheme.typography.bodySmall,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis,
-                        modifier = Modifier.padding(top = 2.dp),
-                    )
-                }
-            }
-        }
     }
 }
 
