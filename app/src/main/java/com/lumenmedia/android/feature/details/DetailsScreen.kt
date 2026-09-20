@@ -246,6 +246,24 @@ fun DetailsScreen(
         val seriesWatched = DetailsViewModel.isSeriesWatched(series)
         val seasonWatched = DetailsViewModel.isSeasonWatched(state.episodes)
         val seasonsFocusRequester = remember { FocusRequester() }
+        val seriesActions = buildMovieMediaActions(
+            canDelete = state.isAdmin,
+            deletingFile = state.deletingFile,
+            deleteFileLabel = stringResource(R.string.details_delete_series),
+            deletingLabel = stringResource(R.string.details_deleting_file),
+            confirmTitle = stringResource(R.string.details_delete_series_title),
+            confirmMessage = stringResource(R.string.details_delete_series_confirm),
+            onDeleteFile = viewModel::deleteSeriesFile,
+        )
+        val seasonActions = buildMovieMediaActions(
+            canDelete = state.isAdmin && state.selectedSeasonId != null,
+            deletingFile = state.deletingFile,
+            deleteFileLabel = stringResource(R.string.details_delete_season),
+            deletingLabel = stringResource(R.string.details_deleting_file),
+            confirmTitle = stringResource(R.string.details_delete_season_title),
+            confirmMessage = stringResource(R.string.details_delete_season_confirm),
+            onDeleteFile = viewModel::deleteSeasonFile,
+        )
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
@@ -294,6 +312,7 @@ fun DetailsScreen(
                     },
                     watchedBusy = state.markingWatched,
                     trailerUrl = series.trailerUrl,
+                    mediaActions = seriesActions,
                     tv = tv,
                     requestInitialHeaderFocus = tv,
                     // Force D-pad Down from CTA into season chips (otherwise LazyColumn
@@ -315,43 +334,48 @@ fun DetailsScreen(
                     tv = tv,
                     entryFocusRequester = if (tv) seasonsFocusRequester else null,
                 )
-                if (state.episodes.isNotEmpty()) {
+                if (state.episodes.isNotEmpty() || seasonActions.isNotEmpty()) {
                     Spacer(modifier = Modifier.height(FpDimens.space8))
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(FpDimens.space8),
                         modifier = Modifier.padding(horizontal = if (tv) 0.dp else FpDimens.contentPadHPhone),
                     ) {
-                        if (!seasonWatched) {
+                        if (state.episodes.isNotEmpty()) {
+                            if (!seasonWatched) {
+                                FpButton(
+                                    onClick = { viewModel.setSeasonWatched(true) },
+                                    enabled = !state.markingWatched,
+                                    label = stringResource(R.string.details_mark_season_watched),
+                                    variant = FpButtonVariant.Secondary,
+                                    compact = true,
+                                )
+                            }
+                            if (DetailsViewModel.seasonCanMarkUnwatched(state.episodes)) {
+                                FpButton(
+                                    onClick = { viewModel.setSeasonWatched(false) },
+                                    enabled = !state.markingWatched,
+                                    label = stringResource(R.string.details_mark_season_unwatched),
+                                    variant = FpButtonVariant.Secondary,
+                                    compact = true,
+                                )
+                            }
+                            val seasonOffline = seasonOfflineLabel(state.episodes, state.offlineByEpisodeId)
                             FpButton(
-                                onClick = { viewModel.setSeasonWatched(true) },
-                                enabled = !state.markingWatched,
-                                label = stringResource(R.string.details_mark_season_watched),
+                                onClick = viewModel::downloadSeason,
+                                enabled = seasonOffline == SeasonOfflineAction.Download,
+                                label = when (seasonOffline) {
+                                    SeasonOfflineAction.Download ->
+                                        stringResource(R.string.details_download_season)
+                                    SeasonOfflineAction.None ->
+                                        stringResource(R.string.details_offline_ready)
+                                },
                                 variant = FpButtonVariant.Secondary,
                                 compact = true,
                             )
                         }
-                        if (DetailsViewModel.seasonCanMarkUnwatched(state.episodes)) {
-                            FpButton(
-                                onClick = { viewModel.setSeasonWatched(false) },
-                                enabled = !state.markingWatched,
-                                label = stringResource(R.string.details_mark_season_unwatched),
-                                variant = FpButtonVariant.Secondary,
-                                compact = true,
-                            )
+                        if (seasonActions.isNotEmpty()) {
+                            MediaFileActionsButton(actions = seasonActions)
                         }
-                        val seasonOffline = seasonOfflineLabel(state.episodes, state.offlineByEpisodeId)
-                        FpButton(
-                            onClick = viewModel::downloadSeason,
-                            enabled = seasonOffline == SeasonOfflineAction.Download,
-                            label = when (seasonOffline) {
-                                SeasonOfflineAction.Download ->
-                                    stringResource(R.string.details_download_season)
-                                SeasonOfflineAction.None ->
-                                    stringResource(R.string.details_offline_ready)
-                            },
-                            variant = FpButtonVariant.Secondary,
-                            compact = true,
-                        )
                     }
                 }
                 Spacer(modifier = Modifier.height(FpDimens.space8))

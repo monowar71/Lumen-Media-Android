@@ -133,6 +133,12 @@
     <string name="details_deleting_file">Удаление…</string>
     <string name="details_delete_file_title">Удалить файл?</string>
     <string name="details_delete_file_confirm">Удалить видеофайл с сервера? Это действие нельзя отменить.</string>
+    <string name="details_delete_series">Удалить сериал</string>
+    <string name="details_delete_series_title">Удалить сериал?</string>
+    <string name="details_delete_series_confirm">Удалить этот сериал и все файлы серий с сервера? Это действие нельзя отменить.</string>
+    <string name="details_delete_season">Удалить сезон</string>
+    <string name="details_delete_season_title">Удалить сезон?</string>
+    <string name="details_delete_season_confirm">Удалить этот сезон и все файлы его серий с сервера? Это действие нельзя отменить.</string>
     <string name="details_media_files">Медиафайлы</string>
     <string name="details_source_version">Версия %1$d</string>
     <string name="details_media_video">Видео: %1$s</string>

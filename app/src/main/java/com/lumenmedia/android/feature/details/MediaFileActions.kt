@@ -35,6 +35,8 @@ data class MediaFileActionItem(
     val label: String,
     val destructive: Boolean = false,
     val enabled: Boolean = true,
+    val confirmTitle: String? = null,
+    val confirmMessage: String? = null,
     val onClick: () -> Unit,
 )
 
@@ -111,6 +113,9 @@ fun MediaFileActionsButton(
 
     confirmDelete?.let { action ->
         DeleteFileConfirmDialog(
+            title = action.confirmTitle ?: stringResource(R.string.details_delete_file_title),
+            message = action.confirmMessage ?: stringResource(R.string.details_delete_file_confirm),
+            confirmLabel = action.label,
             onConfirm = {
                 confirmDelete = null
                 action.onClick()
@@ -168,6 +173,9 @@ fun MediaFileActionsDialog(
 
     pendingDestructive?.let { action ->
         DeleteFileConfirmDialog(
+            title = action.confirmTitle ?: stringResource(R.string.details_delete_file_title),
+            message = action.confirmMessage ?: stringResource(R.string.details_delete_file_confirm),
+            confirmLabel = action.label,
             onConfirm = {
                 pendingDestructive = null
                 onDismiss()
@@ -182,15 +190,18 @@ fun MediaFileActionsDialog(
 fun DeleteFileConfirmDialog(
     onConfirm: () -> Unit,
     onDismiss: () -> Unit,
+    title: String = stringResource(R.string.details_delete_file_title),
+    message: String = stringResource(R.string.details_delete_file_confirm),
+    confirmLabel: String = stringResource(R.string.details_delete_file),
 ) {
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(text = stringResource(R.string.details_delete_file_title)) },
-        text = { Text(text = stringResource(R.string.details_delete_file_confirm)) },
+        title = { Text(text = title) },
+        text = { Text(text = message) },
         confirmButton = {
             TextButton(onClick = onConfirm) {
                 Text(
-                    text = stringResource(R.string.details_delete_file),
+                    text = confirmLabel,
                     color = MaterialTheme.colorScheme.error,
                 )
             }
@@ -291,6 +302,8 @@ fun buildMovieMediaActions(
     deleteFileLabel: String,
     deletingLabel: String,
     onDeleteFile: () -> Unit,
+    confirmTitle: String? = null,
+    confirmMessage: String? = null,
 ): List<MediaFileActionItem> = buildList {
     if (canDelete) {
         add(
@@ -299,6 +312,8 @@ fun buildMovieMediaActions(
                 label = if (deletingFile) deletingLabel else deleteFileLabel,
                 destructive = true,
                 enabled = !deletingFile,
+                confirmTitle = confirmTitle,
+                confirmMessage = confirmMessage,
                 onClick = onDeleteFile,
             ),
         )

@@ -47,7 +47,7 @@ data class DetailsUiState(
 )
 
 sealed interface DetailsEvent {
-    /** Movie (or other top-level item) was removed — leave the details screen. */
+    /** Top-level item (movie or series) was removed — leave the details screen. */
     data object LeaveDetails : DetailsEvent
 }
 
@@ -294,6 +294,19 @@ class DetailsViewModel @Inject constructor(
         if (!_state.value.isAdmin || movie.mediaSources.isEmpty()) return
         deleteMediaFile(movie.id, leaveOnRemoved = true) {
             _state.update { it.copy(movie = movie.copy(mediaSources = emptyList())) }
+        }
+    }
+
+    fun deleteSeriesFile() {
+        if (!_state.value.isAdmin || _state.value.series == null) return
+        deleteMediaFile(itemId, leaveOnRemoved = true) {}
+    }
+
+    fun deleteSeasonFile() {
+        val seasonId = _state.value.selectedSeasonId ?: return
+        if (!_state.value.isAdmin) return
+        deleteMediaFile(seasonId, leaveOnRemoved = false) {
+            refresh(silent = true)
         }
     }
 

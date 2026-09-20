@@ -141,6 +141,12 @@
     <string name="details_deleting_file">Deleting…</string>
     <string name="details_delete_file_title">Delete file?</string>
     <string name="details_delete_file_confirm">Delete this video file from the server? This cannot be undone.</string>
+    <string name="details_delete_series">Delete series</string>
+    <string name="details_delete_series_title">Delete series?</string>
+    <string name="details_delete_series_confirm">Delete this series and all episode files from the server? This cannot be undone.</string>
+    <string name="details_delete_season">Delete season</string>
+    <string name="details_delete_season_title">Delete season?</string>
+    <string name="details_delete_season_confirm">Delete this season and all its episode files from the server? This cannot be undone.</string>
     <string name="details_media_files">Media files</string>
     <string name="details_source_version">Version %1$d</string>
     <string name="details_media_video">Video: %1$s</string>

@@ -8,6 +8,7 @@ import com.lumenmedia.android.core.model.MediaSource
 import com.lumenmedia.android.core.model.MovieDetail
 import com.lumenmedia.android.core.model.ProgressRequest
 import com.lumenmedia.android.core.model.ProgressResponse
+import com.lumenmedia.android.core.model.Season
 import com.lumenmedia.android.core.model.SeriesDetail
 import com.lumenmedia.android.core.model.UserData
 import com.lumenmedia.android.core.network.LumenMediaRepository
@@ -138,6 +139,71 @@ class DetailsViewModelTest {
             assertThat(awaitItem()).isEqualTo(DetailsEvent.LeaveDetails)
         }
         coVerify { repository.deleteMediaFile("m1") }
+    }
+
+    @Test
+    fun deleteSeriesFile_calls_api_and_leaves_when_removed() = runTest {
+        val series = SeriesDetail(
+            id = "s1",
+            kind = "Series",
+            title = "The Boys",
+            seasonCount = 1,
+            episodeCount = 1,
+        )
+        coEvery { repository.itemDetail("s1") } returns ItemDetailResult.Series(series)
+        coEvery { repository.seasons("s1") } returns listOf(
+            Season(id = "sea1", seriesId = "s1", seasonNumber = 1, name = "Season 1"),
+        )
+        coEvery { repository.episodes("sea1") } returns emptyList()
+        coEvery { repository.deleteMediaFile("s1") } returns DeleteMediaFileResponse(
+            deletedFiles = 2,
+            sourcesRemoved = 2,
+            mediaRemoved = true,
+        )
+
+        val vm = createVm("s1")
+        advanceUntilIdle()
+
+        vm.events.test {
+            vm.deleteSeriesFile()
+            advanceUntilIdle()
+            assertThat(awaitItem()).isEqualTo(DetailsEvent.LeaveDetails)
+        }
+        coVerify { repository.deleteMediaFile("s1") }
+    }
+
+    @Test
+    fun deleteSeasonFile_calls_api_and_refreshes_remaining_seasons() = runTest {
+        val series = SeriesDetail(
+            id = "s1",
+            kind = "Series",
+            title = "The Boys",
+            seasonCount = 2,
+            episodeCount = 2,
+        )
+        val season1 = Season(id = "sea1", seriesId = "s1", seasonNumber = 1, name = "Season 1")
+        val season2 = Season(id = "sea2", seriesId = "s1", seasonNumber = 2, name = "Season 2")
+        coEvery { repository.itemDetail("s1") } returns ItemDetailResult.Series(series)
+        coEvery { repository.seasons("s1") } returnsMany listOf(
+            listOf(season1, season2),
+            listOf(season2),
+        )
+        coEvery { repository.episodes(any()) } returns emptyList()
+        coEvery { repository.deleteMediaFile("sea1") } returns DeleteMediaFileResponse(
+            deletedFiles = 1,
+            sourcesRemoved = 1,
+            mediaRemoved = true,
+        )
+
+        val vm = createVm("s1")
+        advanceUntilIdle()
+        assertThat(vm.state.value.selectedSeasonId).isEqualTo("sea1")
+
+        vm.deleteSeasonFile()
+        advanceUntilIdle()
+
+        coVerify { repository.deleteMediaFile("sea1") }
+        assertThat(vm.state.value.seasons.map { it.id }).containsExactly("sea2")
     }
 
     @Test
