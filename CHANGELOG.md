@@ -6,6 +6,16 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 
 ## [Unreleased]
 
+## [0.1.13] - 2026-11-24
+
+### Added
+
+- Series detail: admin can delete all episode files for a series or season.
+
+### Changed
+
+- Series delete action label is **Delete files** / **Удалить файлы**.
+
 ## [0.1.11] - 2026-08-05
 
 ### Added
